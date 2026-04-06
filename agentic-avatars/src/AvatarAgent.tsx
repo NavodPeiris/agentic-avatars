@@ -14,7 +14,7 @@ import { isMobile } from './utils/isMobile';
 import { cn } from './utils/cn';
 import type { AvatarAgentProps } from './types';
 
-const DEFAULT_MODEL_PATH = 'https://cdn.jsdelivr.net/gh/<username>/<repo>@<version_or_branch>/<path_to_file>.glb';
+const DEFAULT_MODEL_PATH = 'https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/camila.glb';
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_END_PHRASE = 'this is the end';
 

@@ -136,13 +136,6 @@ export function Avatar({ modelPath }: AvatarProps) {
         <group name="hd_avatar_8k" scale={0.0108}>
           <primitive object={nodes.CC_Base_BoneRoot} />
         </group>
-        <mesh
-          name="COLLIDER_CC_Base_Hip_Capsule"
-          geometry={sm('COLLIDER_CC_Base_Hip_Capsule').geometry}
-          material={sm('COLLIDER_CC_Base_Hip_Capsule').material}
-          position={[-0.051, 1, -0.005]}
-          rotation={[1.929, -0.223, 0.083]}
-        />
         <skinnedMesh name="Canvas_shoes" geometry={sm('Canvas_shoes').geometry} material={materials.Canvas_shoes} skeleton={sm('Canvas_shoes').skeleton} scale={0.01} />
 
         <group name="CC_Base_Teeth" scale={0.01}>
