@@ -34,7 +34,7 @@ export interface AvatarAgentProps {
   /** Voice for the realtime agent. Defaults to `"sage"`. */
   agentVoice?: string;
 
-  /** Path to the avatar GLB model. Defaults to `https://cdn.jsdelivr.net/gh/<username>/<repo>@<version_or_branch>/<path_to_file>.glb`. */
+  /** Path to the avatar GLB model. Defaults to `https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/camila.glb`. */
   modelPath?: string;
 
   /** Extra class names applied to the outer container div. */

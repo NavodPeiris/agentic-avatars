@@ -176,7 +176,7 @@ agentVoice = "coral";
 
 ---
 
-### `modelPath` · `string` · default `"https://cdn.jsdelivr.net/gh/<username>/<repo>@<version_or_branch>/<path_to_file>.glb"`
+### `modelPath` · `string` · default `"https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/camila.glb"`
 
 ```tsx
 modelPath = "/cdn/my-avatar.glb";
