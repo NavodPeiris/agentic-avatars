@@ -3,8 +3,43 @@ import { useVapiAdapter } from './adapters/vapi/useVapiAdapter';
 import type { VapiAvatarAgentProps } from './types';
 
 /**
- * Convenience wrapper that wires the Vapi adapter into AvatarAgent.
- * For full flexibility use AvatarAgent + useVapiAdapter directly.
+ * Lip-synced 3D avatar driven by Vapi. Configure your assistant in the Vapi
+ * dashboard or provide an inline configuration object.
+ *
+ * @param publicKey - Your Vapi public key. Safe to expose in the browser —
+ *   find it in the Vapi dashboard under API Keys.
+ *
+ * @param assistantId - ID of a pre-configured assistant from the Vapi dashboard.
+ *   Mutually exclusive with `assistant`.
+ *
+ * @param assistant - Inline assistant configuration object. Use this to define
+ *   the assistant without a dashboard setup. Mutually exclusive with `assistantId`.
+ *   ```ts
+ *   assistant={{
+ *     model: {
+ *       provider: 'openai',
+ *       model: 'gpt-4o-mini',
+ *       messages: [{ role: 'system', content: 'You are a helpful assistant.' }],
+ *     },
+ *     voice: { provider: '11labs', voiceId: 'sarah' },
+ *   }}
+ *   ```
+ *
+ * @param avatarComponent - React component to render as the avatar. Defaults to
+ *   the built-in `Camila`. Pass any `React.ComponentType` for a custom avatar.
+ *
+ * @param backgroundImages - Array of image URLs for the scene background. One
+ *   is chosen at random each mount. Transparent when omitted.
+ *
+ * @param onSessionEnd - Called when the session ends — end phrase detected,
+ *   timeout elapsed, or the user clicked End.
+ *
+ * @param endSessionPhrase - Case-insensitive substring the component watches
+ *   for in the agent transcript to end the session. Defaults to `"this is the end"`.
+ *
+ * @param sessionTimeout - Hard timeout in milliseconds. Defaults to `600000` (10 min).
+ *
+ * @param className - Extra CSS class names on the outermost container `div`.
  */
 export function VapiAvatarAgent({
   publicKey,
