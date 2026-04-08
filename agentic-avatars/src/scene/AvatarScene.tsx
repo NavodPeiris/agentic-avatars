@@ -1,9 +1,10 @@
 import { CameraControls } from '@react-three/drei';
 import { useEffect, useLayoutEffect, useRef } from 'react';
+import type { ComponentType } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Avatar } from './Avatar';
 import { Background } from './Background';
+
 
 // ── Transparency fix for Reallusion CC characters ─────────────────────────
 
@@ -49,12 +50,12 @@ function SceneConfig() {
 
 interface AvatarSceneProps {
   backgroundImages: string[];
-  modelPath: string;
+  AvatarComponent: ComponentType;
 }
 
 import type { CameraControls as CameraControlsImpl } from '@react-three/drei';
 
-export function AvatarScene({ backgroundImages, modelPath }: AvatarSceneProps) {
+export function AvatarScene({ backgroundImages, AvatarComponent }: AvatarSceneProps) {
   const controls = useRef<CameraControlsImpl | null>(null);
 
   useLayoutEffect(() => {
@@ -76,7 +77,7 @@ export function AvatarScene({ backgroundImages, modelPath }: AvatarSceneProps) {
       <ambientLight intensity={0.7} />
       <directionalLight position={[1, 1.5, 3]} intensity={2} />
 
-      <Avatar modelPath={modelPath} />
+      <AvatarComponent />
     </>
   );
 }

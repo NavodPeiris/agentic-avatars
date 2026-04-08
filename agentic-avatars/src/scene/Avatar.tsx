@@ -123,6 +123,7 @@ export function Avatar({ modelPath }: AvatarProps) {
     handleBlink(blink ? 1 : 0);
     const lipsync = getLipsyncManager();
     if (!lipsync) return;
+    console.log('Current viseme:', VISEME_MAP[lipsync.viseme]);
     handleMorph(VISEME_MAP[lipsync.viseme]);
   });
 

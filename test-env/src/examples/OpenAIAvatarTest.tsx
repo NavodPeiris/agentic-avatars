@@ -1,9 +1,9 @@
-import { AvatarAgent } from "agentic-avatars";
+import { OpenAIAvatarAgent } from "agentic-avatars";
 
-export default function AvatarTestPage() {
+export default function OpenAIAvatarTest() {
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
-      <AvatarAgent
+      <OpenAIAvatarAgent
         systemPrompt="You are a helpful assistant who answer user questions"
         backgroundImages={["/niceBG.jpg"]}
         getEphemeralKey={async () => {

@@ -1,29 +1,25 @@
 import { useEffect } from 'react';
-import type { SessionStatus } from '../types';
 import { getLipsyncManager, resetLipsyncManager } from './lipsyncManager';
 
 interface UseLipsyncOptions {
-  sessionStatus: SessionStatus;
-  audioElement: HTMLAudioElement | null;
+  /** The remote agent audio stream. When this transitions from null to a stream,
+   *  the audio pipeline is set up. Must be reactive state (not a ref). */
+  remoteStream: MediaStream | null;
   onStartRecording?: (stream: MediaStream) => void;
   onStopRecording?: () => void;
 }
 
 /**
  * Wires the remote audio stream into the Lipsync analyser whenever the
- * session is CONNECTED, and tears down cleanly on disconnect / unmount.
+ * stream becomes available, and tears down cleanly when it goes away.
  */
 export function useLipsync({
-  sessionStatus,
-  audioElement,
+  remoteStream,
   onStartRecording,
   onStopRecording,
 }: UseLipsyncOptions) {
   useEffect(() => {
-    if (sessionStatus !== 'CONNECTED' || !audioElement?.srcObject) return;
-
-    const remoteStream = audioElement.srcObject as MediaStream;
-    if (remoteStream.getAudioTracks().length === 0) return;
+    if (!remoteStream || remoteStream.getAudioTracks().length === 0) return;
 
     const audioCtx = new (window.AudioContext ||
       (window as any).webkitAudioContext)({
@@ -71,7 +67,5 @@ export function useLipsync({
       resetLipsyncManager();
       onStopRecording?.();
     };
-  // Re-run whenever the audio element's srcObject changes after connect
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionStatus]);
+  }, [remoteStream]); // re-runs when the stream reference changes (null → stream → null)
 }

@@ -1,206 +1,182 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ComponentType } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
-import { RealtimeAgent } from '@openai/agents/realtime';
 
 import { AvatarScene } from './scene/AvatarScene';
+import { Avatar } from './scene/Avatar';
 import { Loader } from './ui/Loader';
 import { Toolbar } from './ui/Toolbar';
-import { useAgentSession } from './session/useAgentSession';
 import { useLipsync } from './audio/useLipsync';
 import { useAudio } from './audio/useAudio';
 import { getAgentAudioLevel } from './audio/lipsyncManager';
 import { isMobile } from './utils/isMobile';
 import { cn } from './utils/cn';
-import type { AvatarAgentProps } from './types';
+import type { SessionAdapter } from './adapters/SessionAdapter';
 
-const DEFAULT_MODEL_PATH = 'https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/camila.glb';
+const DEFAULT_MODEL_PATH =
+  'https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/camila.glb';
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_END_PHRASE = 'this is the end';
 
+// Built-in default: Camila avatar with the hosted GLB.
+const DefaultAvatarComponent: ComponentType = () => (
+  <Avatar modelPath={DEFAULT_MODEL_PATH} />
+);
+
+export interface AvatarAgentProps {
+  /** Platform adapter created by one of the useXxxAdapter hooks. */
+  adapter: SessionAdapter;
+
+  /** Array of background image URLs. One is chosen at random each mount. */
+  backgroundImages?: string[];
+
+  /** Called when the session ends (timeout, end phrase, or adapter-triggered). */
+  onSessionEnd?: () => void;
+
+  /**
+   * Phrase the agent says to signal the session should end.
+   * Case-insensitive substring match against the transcript.
+   * Defaults to `"this is the end"`.
+   */
+  endSessionPhrase?: string;
+
+  /** Session hard-timeout in milliseconds. Defaults to 10 minutes. */
+  sessionTimeout?: number;
+
+  /**
+   * Avatar to render. Either:
+   * - A CDN URL (e.g. jsDelivr) pointing to a compiled ES-module whose default
+   *   export is a React component. Defaults to the hosted Camila avatar:
+   *   `"https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/Avatar.tsx"`
+   * - A `React.ComponentType` for fully custom avatars.
+   *
+   * When omitted the built-in Camila avatar is used.
+   */
+  avatarComponent?: string | ComponentType;
+
+  /** Extra class names applied to the outer container div. */
+  className?: string;
+}
+
+/**
+ * Platform-agnostic avatar component.
+ * Accepts any SessionAdapter and handles all rendering, lipsync, and
+ * session lifecycle logic that is common across platforms.
+ */
 export function AvatarAgent({
-  systemPrompt,
-  tools = [],
+  adapter,
   backgroundImages = [],
-  getEphemeralKey,
   onSessionEnd,
   endSessionPhrase = DEFAULT_END_PHRASE,
   sessionTimeout = DEFAULT_TIMEOUT_MS,
-  agentVoice = 'sage',
-  modelPath = DEFAULT_MODEL_PATH,
+  avatarComponent,
   className,
 }: AvatarAgentProps) {
   const mobile = isMobile();
+
+  // Resolve avatarComponent: URL → React.lazy, ComponentType → direct, undefined → built-in default.
+  const ResolvedAvatar = useMemo<ComponentType>(() => {
+    if (!avatarComponent) return DefaultAvatarComponent;
+    if (typeof avatarComponent === 'string') {
+      const url = avatarComponent;
+      return React.lazy(
+        () => import(/* @vite-ignore */ url) as Promise<{ default: ComponentType }>,
+      );
+    }
+    return avatarComponent;
+  }, [avatarComponent]);
   const [isMuted, setIsMuted] = useState(false);
-  const handoffTriggeredRef = useRef(false);
 
-  // ── Audio element (created once, lives as long as the component) ─────────
+  // Destructure stable references so effects don't depend on the adapter object
+  const { status, connect, disconnect, mute, remoteStream, subscribeToTranscript } = adapter;
 
-  const audioElement = useMemo(() => {
-    if (typeof window === 'undefined') return undefined;
-    const el = document.createElement('audio');
-    el.autoplay = true;
-    el.crossOrigin = 'anonymous';
-    el.preload = 'auto';
-    el.style.display = 'none';
-    document.body.appendChild(el);
-    return el;
-  }, []);
+  // Stable refs for callbacks used inside long-lived effects
+  const onSessionEndRef = useRef(onSessionEnd);
+  onSessionEndRef.current = onSessionEnd;
+  const endPhraseRef = useRef(endSessionPhrase);
+  endPhraseRef.current = endSessionPhrase;
 
+  // ── Audio / lipsync ───────────────────────────────────────────────────
+
+  const { startRecording, stopRecording, getMicLevel, startMicMonitoring, stopMicMonitoring } = useAudio();
+
+  // Start mic level monitoring as soon as connected so the audio bars
+  // reflect the user's voice even before agent audio arrives.
   useEffect(() => {
-    return () => {
-      audioElement?.pause();
-      audioElement?.remove();
-    };
-  }, [audioElement]);
-
-  // ── Build the RealtimeAgent from provided systemPrompt + tools ───────────
-
-  const agent = useMemo(
-    () =>
-      new RealtimeAgent({
-        name: 'avatarAgent',
-        voice: agentVoice,
-        instructions: systemPrompt,
-        tools,
-      }),
-    // Rebuild only when identity-critical props change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentVoice],
-  );
-
-  // ── Session end detection via transcript ─────────────────────────────────
-
-  const handleTranscriptMessage = useCallback(
-    (_role: 'assistant' | 'user', text: string) => {
-      if (text.toLowerCase().includes(endSessionPhrase.toLowerCase())) {
-        setTimeout(() => {
-          disconnectAndNotify();
-        }, 0);
-      }
-    },
-    // disconnectAndNotify defined below; safe because it's stable via useCallback
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [endSessionPhrase],
-  );
-
-  // ── Session management ───────────────────────────────────────────────────
-
-  const { status, connect, disconnect, sendEvent, mute } = useAgentSession({
-    onTranscriptMessage: handleTranscriptMessage,
-  });
-
-  const disconnectAndNotify = useCallback(() => {
-    disconnect();
-    onSessionEnd?.();
-  }, [disconnect, onSessionEnd]);
-
-  // ── Audio / lipsync ───────────────────────────────────────────────────────
-
-  const { startRecording, stopRecording, getMicLevel } = useAudio();
+    if (status === 'CONNECTED') {
+      startMicMonitoring();
+    } else {
+      stopMicMonitoring();
+    }
+  }, [status, startMicMonitoring, stopMicMonitoring]);
 
   useLipsync({
-    sessionStatus: status,
-    audioElement: audioElement ?? null,
+    remoteStream,
     onStartRecording: startRecording,
     onStopRecording: stopRecording,
   });
 
-  // ── Connection handlers ───────────────────────────────────────────────────
-
-  const connectToSession = async () => {
-    if (status !== 'DISCONNECTED') return;
-
-    // Inject the latest systemPrompt each time we connect
-    agent.instructions = systemPrompt;
-
-    try {
-      await connect({
-        getEphemeralKey,
-        agent,
-        audioElement,
-      });
-    } catch {
-      // error already logged inside useAgentSession
-    }
-  };
-
-  const disconnectFromSession = useCallback(() => {
-    const stream = audioElement?.srcObject as MediaStream | null;
-    stream?.getTracks().forEach((t) => t.stop());
-    if (audioElement) {
-      audioElement.pause();
-      audioElement.srcObject = null;
-    }
-    disconnect();
-  }, [audioElement, disconnect]);
-
-  const onToggleConnection = () => {
-    if (status === 'CONNECTED' || status === 'CONNECTING') {
-      disconnectFromSession();
-    } else {
-      connectToSession();
-    }
-  };
-
-  // ── VAD session config on connect ─────────────────────────────────────────
+  // ── End phrase detection via transcript ───────────────────────────────
 
   useEffect(() => {
-    if (status !== 'CONNECTED') return;
-    sendEvent({
-      type: 'session.update',
-      session: {
-        turn_detection: {
-          type: 'server_vad',
-          threshold: 0.9,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 500,
-          create_response: true,
-        },
-      },
+    return subscribeToTranscript((_role, text) => {
+      if (text.toLowerCase().includes(endPhraseRef.current.toLowerCase())) {
+        setTimeout(() => {
+          disconnect();
+          onSessionEndRef.current?.();
+        }, 0);
+      }
     });
-    if (!handoffTriggeredRef.current) {
-      // Kick off conversation with a silent greeting
-      sendEvent({
-        type: 'conversation.item.create',
-        item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] },
+  // subscribeToTranscript and disconnect are stable useCallbacks
+  }, [subscribeToTranscript, disconnect]);
+
+  // ── Connection toggle ─────────────────────────────────────────────────
+
+  const onToggleConnection = useCallback(() => {
+    if (status === 'CONNECTED' || status === 'CONNECTING') {
+      disconnect();
+    } else {
+      connect().catch(() => {
+        // error already logged inside the adapter
       });
-      sendEvent({ type: 'response.create' });
     }
-    handoffTriggeredRef.current = false;
-  }, [status, sendEvent]);
+  }, [status, connect, disconnect]);
 
-  // ── Mute sync ─────────────────────────────────────────────────────────────
+  // ── Mute ─────────────────────────────────────────────────────────────
 
-  const onToggleMute = () => {
+  const onToggleMute = useCallback(() => {
     const next = !isMuted;
     setIsMuted(next);
     mute(next);
-  };
+  }, [isMuted, mute]);
 
   useEffect(() => {
     if (status === 'CONNECTED') mute(isMuted);
   }, [status, isMuted, mute]);
 
-  // ── Session timeout ───────────────────────────────────────────────────────
+  // ── Session timeout ───────────────────────────────────────────────────
 
   useEffect(() => {
     if (status !== 'CONNECTED') return;
     const id = setTimeout(() => {
       console.log('[AvatarAgent] session timeout');
-      disconnectAndNotify();
+      disconnect();
+      onSessionEndRef.current?.();
     }, sessionTimeout);
     return () => clearTimeout(id);
-  }, [status, sessionTimeout, disconnectAndNotify]);
+  }, [status, sessionTimeout, disconnect]);
 
-  // ── Cleanup on unmount ────────────────────────────────────────────────────
+  // ── Cleanup on unmount ────────────────────────────────────────────────
 
   useEffect(() => {
-    return () => { disconnectFromSession(); };
+    return () => {
+      disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -244,11 +220,10 @@ export function AvatarAgent({
           dpr={[1, 2]}
         >
           <Suspense fallback={<Loader />}>
-            <AvatarScene backgroundImages={backgroundImages} modelPath={modelPath} />
+            <AvatarScene backgroundImages={backgroundImages} AvatarComponent={ResolvedAvatar} />
           </Suspense>
         </Canvas>
       </div>
-
     </div>
   );
 }

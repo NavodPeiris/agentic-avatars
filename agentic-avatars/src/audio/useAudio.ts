@@ -72,5 +72,32 @@ export function useAudio() {
     return new Blob(recordedChunksRef.current, { type: 'audio/webm' });
   };
 
-  return { startRecording, stopRecording, getRecordedBlob, getMicLevel };
+  // ── Standalone mic monitoring (no remote stream needed) ──────────────────
+  // Starts mic access and level analysis independently of recording.
+  // Call this on session connect so getMicLevel() works even before the
+  // agent sends audio (e.g. LiveKit, where mic is published natively).
+
+  const startMicMonitoring = async () => {
+    if (micAnalyserRef.current) return; // already running
+    try {
+      micStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioContextRef.current = audioContextRef.current ?? new AudioContext();
+      const micSource = audioContextRef.current.createMediaStreamSource(micStreamRef.current);
+      micAnalyserRef.current = audioContextRef.current.createAnalyser();
+      micAnalyserRef.current.fftSize = 256;
+      micSource.connect(micAnalyserRef.current);
+    } catch { /* mic denied — getMicLevel will return 0 */ }
+  };
+
+  const stopMicMonitoring = () => {
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+    micAnalyserRef.current = null;
+    if (audioContextRef.current?.state !== 'closed') {
+      audioContextRef.current?.close();
+    }
+    audioContextRef.current = null;
+  };
+
+  return { startRecording, stopRecording, getRecordedBlob, getMicLevel, startMicMonitoring, stopMicMonitoring };
 }

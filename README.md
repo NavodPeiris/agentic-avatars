@@ -26,11 +26,11 @@ npm install agentic-avatars
 ## Quick start
 
 ```tsx
-import { AvatarAgent } from "agentic-avatars";
+import { OpenAIAvatarAgent } from "agentic-avatars";
 
 export default function InterviewPage() {
   return (
-    <AvatarAgent
+    <OpenAIAvatarAgent
       systemPrompt="You are a friendly AI interviewer. Ask the candidate three questions about their experience, then say 'This is the end' to close the session."
       getEphemeralKey={async () => {
         const res = await fetch("/api/realtime-session");
@@ -49,7 +49,7 @@ That's it. The component renders the avatar, manages the WebRTC session, drives 
 ## Props
 
 ```ts
-interface AvatarAgentProps {
+interface OpenAIAvatarAgentProps {
   systemPrompt: string;
   tools?: ReturnType<typeof tool>[];
   backgroundImages?: string[];
@@ -88,7 +88,7 @@ getEphemeralKey={async () => {
 Tools the agent can call during the conversation. Use the `tool()` helper re-exported from this package — no extra import needed.
 
 ```tsx
-import { AvatarAgent, tool } from 'agentic-avatars';
+import { OpenAIAvatarAgent, tool } from 'agentic-avatars';
 
 const submitFeedback = tool({
   name: 'submitFeedback',
@@ -111,7 +111,7 @@ const submitFeedback = tool({
   },
 });
 
-<AvatarAgent
+<OpenAIAvatarAgent
   systemPrompt="..."
   tools={[submitFeedback]}
   getEphemeralKey={...}
@@ -197,7 +197,7 @@ className = "w-full max-w-2xl mx-auto";
 ## Full example
 
 ```tsx
-import { AvatarAgent, tool } from "agentic-avatars";
+import { OpenAIAvatarAgent, tool } from "agentic-avatars";
 import { useRouter } from "next/navigation";
 
 const scoreCandidate = tool({
@@ -233,7 +233,7 @@ export default function InterviewPage({ question }: { question: string }) {
   `;
 
   return (
-    <AvatarAgent
+    <OpenAIAvatarAgent
       systemPrompt={systemPrompt}
       tools={[scoreCandidate]}
       backgroundImages={[
@@ -304,8 +304,10 @@ WebRTC session opens (RealtimeAgent with your systemPrompt + tools)
 ```
 src/
 ├── index.ts               ← public exports
-├── types.ts               ← AvatarAgentProps
-├── AvatarAgent.tsx        ← main component
+├── types.ts               ← agent props
+├── OpenAIAvatarAgent.tsx  ← main components
+├── XXXXXXAvatarAgent.tsx
+├── ....
 ├── scene/
 │   ├── AvatarScene.tsx    ← camera, lights, mobile transparency fix
 │   ├── Avatar.tsx         ← skinned mesh, morph targets, blink, lipsync

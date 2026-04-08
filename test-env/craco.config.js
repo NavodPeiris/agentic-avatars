@@ -25,6 +25,15 @@ module.exports = {
         }
       }
 
+      // Fix: ESM packages in node_modules that use extensionless relative
+      // imports (e.g. @elevenlabs/react) fail with webpack's strict ESM
+      // resolver. Disable fullySpecified for .js files inside node_modules.
+      webpackConfig.module.rules.push({
+        test: /\.m?js$/,
+        resolve: { fullySpecified: false },
+        include: /node_modules/,
+      });
+
       return webpackConfig;
     },
   },
