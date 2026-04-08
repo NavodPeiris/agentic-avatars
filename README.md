@@ -1,10 +1,14 @@
+<div align="center">
+
+<img src="banner.png" alt="Agentic Avatars" width="600" />
+
 # agentic-avatars
 
 Zero-Infrastructure Lip-Synced 3D avatar components for AI voice agents. Drop it into any React app, pick a provider, and hand it your credentials — everything else is handled internally. **No Infrastructure provisioning for 3D avatars. Runs Directly on Browser.**
 
 Supported providers: **OpenAI Realtime API**, **Deepgram Voice Agents**, **ElevenLabs Conversational AI Agents**, **Vapi Agents**, **LiveKit Agents**.
 
----
+</div>
 
 ## Requirements
 
