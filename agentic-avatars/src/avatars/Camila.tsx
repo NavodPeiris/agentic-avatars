@@ -6,8 +6,11 @@ import { useGLTF, useAnimations } from '@react-three/drei';
 import { SkeletonUtils } from 'three-stdlib';
 import * as THREE from 'three';
 import { VISEMES } from 'wawa-lipsync';
+import type { Lipsync } from 'wawa-lipsync';
 import { getLipsyncManager } from '../audio/lipsyncManager';
 
+// Map from wawa-lipsync viseme enums to Camila's morph target names.
+// adapt the map if you swap in a different avatar with different morph target naming!
 const VISEME_MAP: Record<VISEMES, string> = {
   [VISEMES.sil]: 'None',
   [VISEMES.PP]: 'B_M_P',
@@ -26,11 +29,8 @@ const VISEME_MAP: Record<VISEMES, string> = {
   [VISEMES.U]: 'W_OO',
 };
 
-interface AvatarProps {
-  modelPath: string;
-}
-
-export function Avatar({ modelPath }: AvatarProps) {
+export function Camila() {
+  const modelPath = 'https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/camila.glb';
   const group = React.useRef<THREE.Group>(null);
 
   const { scene, animations } = useGLTF(modelPath);
@@ -121,9 +121,8 @@ export function Avatar({ modelPath }: AvatarProps) {
 
   useFrame(() => {
     handleBlink(blink ? 1 : 0);
-    const lipsync = getLipsyncManager();
+    const lipsync = getLipsyncManager() as Lipsync | null;
     if (!lipsync) return;
-    console.log('Current viseme:', VISEME_MAP[lipsync.viseme]);
     handleMorph(VISEME_MAP[lipsync.viseme]);
   });
 

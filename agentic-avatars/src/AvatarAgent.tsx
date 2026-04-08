@@ -2,9 +2,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import type { ComponentType } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
-
 import { AvatarScene } from './scene/AvatarScene';
-import { Avatar } from './scene/Avatar';
 import { Loader } from './ui/Loader';
 import { Toolbar } from './ui/Toolbar';
 import { useLipsync } from './audio/useLipsync';
@@ -14,15 +12,10 @@ import { isMobile } from './utils/isMobile';
 import { cn } from './utils/cn';
 import type { SessionAdapter } from './adapters/SessionAdapter';
 
-const DEFAULT_MODEL_PATH =
-  'https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/camila.glb';
+import { Camila } from './avatars/Camila';
+
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_END_PHRASE = 'this is the end';
-
-// Built-in default: Camila avatar with the hosted GLB.
-const DefaultAvatarComponent: ComponentType = () => (
-  <Avatar modelPath={DEFAULT_MODEL_PATH} />
-);
 
 export interface AvatarAgentProps {
   /** Platform adapter created by one of the useXxxAdapter hooks. */
@@ -45,15 +38,12 @@ export interface AvatarAgentProps {
   sessionTimeout?: number;
 
   /**
-   * Avatar to render. Either:
-   * - A CDN URL (e.g. jsDelivr) pointing to a compiled ES-module whose default
-   *   export is a React component. Defaults to the hosted Camila avatar:
-   *   `"https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/Avatar.tsx"`
+   * Avatar to render.
+   * - A library exported Avatar Component
    * - A `React.ComponentType` for fully custom avatars.
    *
-   * When omitted the built-in Camila avatar is used.
    */
-  avatarComponent?: string | ComponentType;
+  avatarComponent?: ComponentType;
 
   /** Extra class names applied to the outer container div. */
   className?: string;
@@ -74,18 +64,6 @@ export function AvatarAgent({
   className,
 }: AvatarAgentProps) {
   const mobile = isMobile();
-
-  // Resolve avatarComponent: URL → React.lazy, ComponentType → direct, undefined → built-in default.
-  const ResolvedAvatar = useMemo<ComponentType>(() => {
-    if (!avatarComponent) return DefaultAvatarComponent;
-    if (typeof avatarComponent === 'string') {
-      const url = avatarComponent;
-      return React.lazy(
-        () => import(/* @vite-ignore */ url) as Promise<{ default: ComponentType }>,
-      );
-    }
-    return avatarComponent;
-  }, [avatarComponent]);
   const [isMuted, setIsMuted] = useState(false);
 
   // Destructure stable references so effects don't depend on the adapter object
@@ -220,7 +198,7 @@ export function AvatarAgent({
           dpr={[1, 2]}
         >
           <Suspense fallback={<Loader />}>
-            <AvatarScene backgroundImages={backgroundImages} AvatarComponent={ResolvedAvatar} />
+            <AvatarScene backgroundImages={backgroundImages} AvatarComponent={avatarComponent ?? Camila} />
           </Suspense>
         </Canvas>
       </div>

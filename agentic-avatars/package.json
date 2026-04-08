@@ -1,7 +1,7 @@
 {
   "name": "agentic-avatars",
   "version": "0.1.0",
-  "description": "Zero-Infrastructure Embeddable 3D avatar realtime voice agent library built with React Three Fiber and AI providers",
+  "description": "Zero-Infrastructure Lip-Synced 3D avatar components for AI voice agents. this library is built with React Three Fiber and AI providers",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

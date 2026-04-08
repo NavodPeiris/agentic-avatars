@@ -36,5 +36,5 @@ export type { UseElevenLabsAdapterOptions } from './adapters/elevenlabs/useEleve
 export type { UseLiveKitAdapterOptions } from './adapters/livekit/useLiveKitAdapter';
 export type { UseDeepgramAdapterOptions } from './adapters/deepgram/useDeepgramAdapter';
 
-// ── Re-export tool helper so consumers don't need a direct @openai/agents import
-export { tool } from '@openai/agents/realtime';
+// ── Export library provided avatars ───────────────────────────────────────────────
+export { Camila } from './avatars/Camila';

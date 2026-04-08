@@ -67,6 +67,7 @@ test in host app:
 ```bash
 cd test-env
 pnpm i
+# import any test agent from src/examples into App.tsx and test
 pnpm start
 ```
 

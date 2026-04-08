@@ -5,7 +5,6 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Background } from './Background';
 
-
 // ── Transparency fix for Reallusion CC characters ─────────────────────────
 
 function SceneConfig() {

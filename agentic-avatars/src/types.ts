@@ -31,7 +31,7 @@ interface BaseAvatarAgentProps {
    *
    * Defaults to the built-in Camila avatar.
    */
-  avatarComponent?: string | React.ComponentType;
+  avatarComponent?: React.ComponentType;
 
   /** Extra class names applied to the outer container div. */
   className?: string;
