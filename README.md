@@ -1,6 +1,8 @@
 # agentic-avatars
 
-Embeddable React component that renders a lip-synced 3D avatar driven by an OpenAI Realtime voice session. Drop it into any React app and hand it a system prompt, tools, and background images — everything else is handled internally.
+Zero-Infrastructure Lip-Synced 3D avatar components for AI voice agents. Drop it into any React app, pick a provider, and hand it your credentials — everything else is handled internally. **No Infrastructure provisioning for 3D avatars. Runs Directly on Browser.**
+
+Supported providers: **OpenAI Realtime API**, **Deepgram Voice Agents**, **ElevenLabs Conversational AI Agents**, **Vapi Agents**, **LiveKit Agents**.
 
 ---
 
@@ -11,9 +13,17 @@ Embeddable React component that renders a lip-synced 3D avatar driven by an Open
 | `react`         | ≥ 18    |
 | `react-dom`     | ≥ 18    |
 
-Your bundler must be able to handle `.glb` model files served from the `public/` directory (standard for Next.js / Vite).
-
 ---
+
+## Pre-requisites
+
+your project should have following installed:
+
+```
+@react-three/drei
+@react-three/fiber
+three
+```
 
 ## Installation
 
@@ -23,258 +33,303 @@ npm install agentic-avatars
 
 ---
 
-## Quick start
+## Providers
+
+- [OpenAI](#openai)
+- [Deepgram](#deepgram)
+- [ElevenLabs](#elevenlabs)
+- [Vapi](#vapi)
+- [LiveKit](#livekit)
+
+---
+
+## OpenAI
+
+Uses the OpenAI Realtime API over WebRTC. Requires a server-side endpoint to mint ephemeral session keys.
 
 ```tsx
 import { OpenAIAvatarAgent } from "agentic-avatars";
 
-export default function InterviewPage() {
-  return (
-    <OpenAIAvatarAgent
-      systemPrompt="You are a friendly AI interviewer. Ask the candidate three questions about their experience, then say 'This is the end' to close the session."
-      getEphemeralKey={async () => {
-        const res = await fetch("/api/realtime-session");
-        const data = await res.json();
-        return data.client_secret.value;
-      }}
-    />
-  );
-}
-```
-
-That's it. The component renders the avatar, manages the WebRTC session, drives lip sync, and cleans up on unmount.
-
----
-
-## Props
-
-```ts
-interface OpenAIAvatarAgentProps {
-  systemPrompt: string;
-  tools?: ReturnType<typeof tool>[];
-  backgroundImages?: string[];
-  getEphemeralKey: () => Promise<string>;
-  onSessionEnd?: () => void;
-  endSessionPhrase?: string;
-  sessionTimeout?: number;
-  agentVoice?: string;
-  modelPath?: string;
-  className?: string;
-}
-```
-
-### `systemPrompt` · `string` · **required**
-
-Instructions injected into the realtime agent when the session starts. The full system prompt is sent fresh on every new connection, so you can compute it dynamically before passing it as a prop.
-
----
-
-### `getEphemeralKey` · `() => Promise<string>` · **required**
-
-Called once per connection attempt. Must resolve to a valid OpenAI ephemeral key for the Realtime API. Keep your secret key server-side; this function should call your own backend endpoint.
-
-```ts
-getEphemeralKey={async () => {
-  const res = await fetch('/api/realtime-session');
-  const { client_secret } = await res.json();
-  return client_secret.value;
-}}
-```
-
----
-
-### `tools` · `ReturnType<typeof tool>[]` · default `[]`
-
-Tools the agent can call during the conversation. Use the `tool()` helper re-exported from this package — no extra import needed.
-
-```tsx
-import { OpenAIAvatarAgent, tool } from 'agentic-avatars';
-
-const submitFeedback = tool({
-  name: 'submitFeedback',
-  description: 'Submit structured feedback after the conversation ends',
-  parameters: {
-    type: 'object',
-    properties: {
-      score:   { type: 'number', description: 'Score from 1 to 10' },
-      summary: { type: 'string', description: 'Brief summary of the conversation' },
-    },
-    required: ['score', 'summary'],
-    additionalProperties: false,
-  },
-  execute: async ({ score, summary }) => {
-    await fetch('/api/feedback', {
-      method: 'POST',
-      body: JSON.stringify({ score, summary }),
-    });
-    return { ok: true };
-  },
-});
-
 <OpenAIAvatarAgent
-  systemPrompt="..."
-  tools={[submitFeedback]}
-  getEphemeralKey={...}
-/>
+  systemPrompt="You are a friendly AI interviewer. Ask three questions, then say 'This is the end'."
+  getEphemeralKey={async () => {
+    const res = await fetch("/api/realtime-session");
+    const { client_secret } = await res.json();
+    return client_secret.value;
+  }}
+/>;
 ```
 
----
-
-### `backgroundImages` · `string[]` · default `[]`
-
-Array of image URLs (absolute paths, relative paths, or full URLs). One is picked at random each time the component mounts. The 3D scene uses it as a full-scene background.
-
-```tsx
-backgroundImages={[
-  '/backgrounds/office.jpg',
-  '/backgrounds/lobby.jpg',
-  '/backgrounds/meeting-room.jpg',
-]}
-```
-
-When omitted the scene background is transparent, so the component's CSS background shows through.
-
----
-
-### `onSessionEnd` · `() => void` · optional
-
-Called when the session ends — either because the agent said the `endSessionPhrase`, the `sessionTimeout` elapsed, or the user clicked **End**. Use this to navigate away or trigger a post-session action.
-
-```tsx
-onSessionEnd={() => router.push('/results')}
-```
-
----
-
-### `endSessionPhrase` · `string` · default `"this is the end"`
-
-Case-insensitive substring the component watches for in the agent's transcript. When detected, the session disconnects and `onSessionEnd` fires. Teach the agent to say this phrase at the natural conclusion of the conversation via `systemPrompt`.
-
-```tsx
-endSessionPhrase = "interview complete";
-```
-
----
-
-### `sessionTimeout` · `number` · default `600000` (10 minutes)
-
-Hard timeout in milliseconds. The session disconnects automatically after this duration regardless of conversation state.
-
-```tsx
-sessionTimeout={5 * 60 * 1000} // 5 minutes
-```
-
----
-
-### `agentVoice` · `string` · default `"sage"`
-
-OpenAI Realtime voice ID. Available voices: `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`.
-
-```tsx
-agentVoice = "coral";
-```
-
----
-
-### `modelPath` · `string` · default `"https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/camila.glb"`
-
-```tsx
-modelPath = "/cdn/my-avatar.glb";
-```
-
----
-
-### `className` · `string` · optional
-
-Extra CSS class names applied to the outermost container `div`. Useful for sizing the component within a layout.
-
-```tsx
-className = "w-full max-w-2xl mx-auto";
-```
-
----
-
-## Full example
-
-```tsx
-import { OpenAIAvatarAgent, tool } from "agentic-avatars";
-import { useRouter } from "next/navigation";
-
-const scoreCandidate = tool({
-  name: "scoreCandidate",
-  description: "Record the final score when the interview ends",
-  parameters: {
-    type: "object",
-    properties: {
-      transcript: { type: "string" },
-      score: { type: "number" },
-    },
-    required: ["transcript", "score"],
-    additionalProperties: false,
-  },
-  execute: async ({ transcript, score }) => {
-    await fetch("/api/score", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcript, score }),
-    });
-    return { saved: true };
-  },
-});
-
-export default function InterviewPage({ question }: { question: string }) {
-  const router = useRouter();
-
-  const systemPrompt = `
-    You are an AI technical interviewer at Acme Corp.
-    Ask the candidate: "${question}".
-    Follow up with clarifying questions as needed.
-    When finished, call the scoreCandidate tool, then say "This is the end".
-  `;
-
-  return (
-    <OpenAIAvatarAgent
-      systemPrompt={systemPrompt}
-      tools={[scoreCandidate]}
-      backgroundImages={[
-        "/backgrounds/office-1.jpg",
-        "/backgrounds/office-2.jpg",
-      ]}
-      getEphemeralKey={async () => {
-        const res = await fetch("/api/realtime-session");
-        const { client_secret } = await res.json();
-        return client_secret.value;
-      }}
-      onSessionEnd={() => router.push("/results")}
-      endSessionPhrase="this is the end"
-      sessionTimeout={8 * 60 * 1000}
-      agentVoice="sage"
-      className="w-full max-w-4xl mx-auto"
-    />
-  );
-}
-```
-
----
-
-## Backend: ephemeral key endpoint
-
-The component never touches your OpenAI secret key directly. You need a small server-side endpoint that mints a short-lived session token:
+**Backend — ephemeral key endpoint**
 
 ```ts
 // app/api/realtime-session/route.ts  (Next.js App Router)
-export async function POST() {
+export async function GET() {
   const res = await fetch("https://api.openai.com/v1/realtime/sessions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model: "gpt-realtime-mini-2025-10-06" }),
+    body: JSON.stringify({ model: "gpt-4o-realtime-preview-2024-12-17" }),
   });
-  const data = await res.json();
-  return Response.json(data);
+  return Response.json(await res.json());
 }
+```
+
+### Props
+
+| Prop              | Type                        | Default      | Description                                                                                     |
+| ----------------- | --------------------------- | ------------ | ----------------------------------------------------------------------------------------------- |
+| `systemPrompt`    | `string`                    | **required** | Instructions injected into the realtime agent on connect.                                       |
+| `getEphemeralKey` | `() => Promise<string>`     | **required** | Called once per connection. Must resolve to an OpenAI ephemeral key.                            |
+| `tools`           | `ReturnType<typeof tool>[]` | `[]`         | Tools the agent can call. Use the `tool()` helper from `@openai/agents/realtime`.               |
+| `agentVoice`      | `string`                    | `"sage"`     | OpenAI Realtime voice. Options: `alloy` `ash` `ballad` `coral` `echo` `sage` `shimmer` `verse`. |
+
+---
+
+## Deepgram
+
+Uses the Deepgram Voice Agent API over WebSocket. Handles STT, LLM, and TTS in a single connection. **Never expose your Deepgram API key in the browser** — proxy it through your backend.
+
+```tsx
+import { DeepgramAvatarAgent } from "agentic-avatars";
+
+<DeepgramAvatarAgent
+  getApiKey={async () => {
+    const res = await fetch("/api/deepgram-key");
+    const { key } = await res.json();
+    return key;
+  }}
+  systemPrompt="You are a helpful assistant."
+  llm={{ provider: "open_ai", model: "gpt-4o-mini" }}
+  voice="aura-2-thalia-en"
+  sttModel="nova-3"
+/>;
+```
+
+### Props
+
+| Prop           | Type                    | Default                                         | Description                                                                                     |
+| -------------- | ----------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `getApiKey`    | `() => Promise<string>` | **required**                                    | Returns a Deepgram API key. Proxy through your backend in production.                           |
+| `systemPrompt` | `string`                | —                                               | System prompt / instructions for the LLM.                                                       |
+| `llm`          | `{ provider?, model? }` | `{ provider: "open_ai", model: "gpt-4o-mini" }` | LLM provider and model. Providers: `open_ai` `anthropic` `x_ai` `groq` `amazon` `google`.       |
+| `voice`        | `string`                | `"aura-2-thalia-en"`                            | Deepgram TTS voice. See [Deepgram TTS models](https://developers.deepgram.com/docs/tts-models). |
+| `sttModel`     | `string`                | `"nova-3"`                                      | Deepgram STT model.                                                                             |
+
+---
+
+## ElevenLabs
+
+Uses the ElevenLabs Conversational AI SDK. Configure your agent in the ElevenLabs dashboard and pass its ID here.
+
+```tsx
+import { ElevenLabsAvatarAgent } from "agentic-avatars";
+
+// Public agent (no auth required)
+<ElevenLabsAvatarAgent
+  agentId="your-agent-id"
+/>
+
+// Private agent (fetch a short-lived token server-side)
+<ElevenLabsAvatarAgent
+  agentId="your-agent-id"
+  getConversationToken={async () => {
+    const res = await fetch("/api/elevenlabs-token");
+    const { token } = await res.json();
+    return token;
+  }}
+/>
+```
+
+**Backend — conversation token endpoint**
+
+```ts
+// app/api/elevenlabs-token/route.ts
+export async function GET(req: Request) {
+  const agentId = new URL(req.url).searchParams.get("agentId");
+  const res = await fetch(
+    `https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=${agentId}`,
+    { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY! } },
+  );
+  return Response.json(await res.json());
+}
+```
+
+### Props
+
+| Prop                   | Type                               | Default      | Description                                                      |
+| ---------------------- | ---------------------------------- | ------------ | ---------------------------------------------------------------- |
+| `agentId`              | `string`                           | **required** | Agent ID from the ElevenLabs dashboard.                          |
+| `getConversationToken` | `() => Promise<string>`            | —            | Required for private agents. Returns a short-lived WebRTC token. |
+| `clientTools`          | `Record<string, (...args) => any>` | —            | Client-side tools exposed to the agent.                          |
+
+---
+
+## Vapi
+
+Uses the Vapi Web SDK. Configure your assistant in the Vapi dashboard or pass an inline configuration object.
+
+```tsx
+import { VapiAvatarAgent } from "agentic-avatars";
+
+// Using a pre-configured assistant ID
+<VapiAvatarAgent
+  publicKey="your-vapi-public-key"
+  assistantId="your-assistant-id"
+/>
+
+// Using an inline assistant config
+<VapiAvatarAgent
+  publicKey="your-vapi-public-key"
+  assistant={{
+    model: {
+      provider: "openai",
+      model: "gpt-4o-mini",
+      messages: [{ role: "system", content: "You are a helpful assistant." }],
+    },
+    voice: { provider: "11labs", voiceId: "sarah" },
+  }}
+/>
+```
+
+### Props
+
+| Prop          | Type                  | Default      | Description                                                                   |
+| ------------- | --------------------- | ------------ | ----------------------------------------------------------------------------- |
+| `publicKey`   | `string`              | **required** | Your Vapi public key (safe to expose in the browser).                         |
+| `assistantId` | `string`              | —            | Pre-configured assistant ID. Mutually exclusive with `assistant`.             |
+| `assistant`   | `Record<string, any>` | —            | Inline assistant configuration object. Mutually exclusive with `assistantId`. |
+
+---
+
+## LiveKit
+
+Uses LiveKit Agents over WebRTC. Your LiveKit agent must be running server-side and the token must grant access to the correct room.
+
+```tsx
+import { LiveKitAvatarAgent } from "agentic-avatars";
+
+<LiveKitAvatarAgent
+  serverUrl="wss://my-project.livekit.cloud"
+  getToken={async () => {
+    const res = await fetch("/api/livekit-token");
+    const { token } = await res.json();
+    return token;
+  }}
+/>;
+```
+
+**Backend — participant token endpoint**
+
+```ts
+// app/api/livekit-token/route.ts
+import { AccessToken } from "livekit-server-sdk";
+
+export async function GET() {
+  const token = new AccessToken(
+    process.env.LIVEKIT_API_KEY!,
+    process.env.LIVEKIT_API_SECRET!,
+    { identity: `user-${Date.now()}` },
+  );
+  token.addGrant({ roomJoin: true, room: "agent-room" });
+  return Response.json({ token: await token.toJwt() });
+}
+```
+
+### Props
+
+| Prop        | Type                    | Default      | Description                                                                                |
+| ----------- | ----------------------- | ------------ | ------------------------------------------------------------------------------------------ |
+| `serverUrl` | `string`                | **required** | LiveKit server WebSocket URL, e.g. `wss://my-project.livekit.cloud`.                       |
+| `getToken`  | `() => Promise<string>` | **required** | Returns a short-lived participant token. Generate server-side with the LiveKit server SDK. |
+
+---
+
+## Shared props
+
+All provider components accept these additional props:
+
+| Prop               | Type            | Default             | Description                                                                                        |
+| ------------------ | --------------- | ------------------- | -------------------------------------------------------------------------------------------------- |
+| `avatarComponent`  | `ComponentType` | `Camila`            | Avatar to render. Pass a library-provided avatar or any custom `React.ComponentType`.              |
+| `backgroundImages` | `string[]`      | `[]`                | Image URLs for the scene background. One is chosen at random each mount. Transparent when omitted. |
+| `onSessionEnd`     | `() => void`    | —                   | Called when the session ends (end phrase detected, timeout, or user clicked End).                  |
+| `endSessionPhrase` | `string`        | `"this is the end"` | Case-insensitive substring the component watches for in the agent's transcript to end the session. |
+| `sessionTimeout`   | `number`        | `600000`            | Hard timeout in milliseconds.                                                                      |
+| `className`        | `string`        | —                   | Extra CSS class names on the outermost container `div`.                                            |
+
+---
+
+## Avatars
+
+The library ships a built-in avatar that is used by default. You can also pass any React component that renders a 3D scene element (intended for use inside a `@react-three/fiber` `Canvas`).
+
+```tsx
+import { DeepgramAvatarAgent, Camila } from "agentic-avatars";
+
+// Default — Camila is used automatically when avatarComponent is omitted
+<DeepgramAvatarAgent getApiKey={...} />
+
+// Explicit
+<DeepgramAvatarAgent
+  getApiKey={...}
+  avatarComponent={Camila}
+/>
+
+// Custom avatar component
+function MyAvatar() {
+  // must be a valid R3F scene element
+  return <mesh>...</mesh>;
+}
+
+<DeepgramAvatarAgent
+  getApiKey={...}
+  avatarComponent={MyAvatar}
+/>
+```
+
+### Available avatars
+
+| Export   | Description                                                                                    |
+| -------- | ---------------------------------------------------------------------------------------------- |
+| `Camila` | Female avatar with a Reallusion CC character rig. Loads the model from jsDelivr automatically. |
+
+---
+
+## Advanced: adapter hooks
+
+For full layout control, use `AvatarAgent` directly with an adapter hook. This lets you compose the avatar into your own UI without the built-in container styles.
+
+```tsx
+import { AvatarAgent, useDeepgramAdapter } from "agentic-avatars";
+
+function MyPage() {
+  const adapter = useDeepgramAdapter({
+    getApiKey: async () => {
+      const res = await fetch("/api/deepgram-key");
+      return (await res.json()).key;
+    },
+    systemPrompt: "You are a helpful assistant.",
+  });
+
+  return (
+    <div className="my-layout">
+      <AvatarAgent adapter={adapter} className="h-[600px]" />
+    </div>
+  );
+}
+```
+
+All adapter hooks follow the same pattern:
+
+```ts
+useOpenAIAdapter(options); // → SessionAdapter
+useDeepgramAdapter(options); // → SessionAdapter
+useElevenLabsAdapter(options); // → SessionAdapter
+useVapiAdapter(options); // → SessionAdapter
+useLiveKitAdapter(options); // → SessionAdapter
 ```
 
 ---
@@ -285,14 +340,11 @@ export async function POST() {
 User clicks Start
       │
       ▼
-getEphemeralKey() ──► your backend ──► OpenAI /realtime/sessions
+Provider adapter connects (WebRTC / WebSocket)
       │
-      ▼
-WebRTC session opens (RealtimeAgent with your systemPrompt + tools)
+      ├── Audio stream ──► Web Audio AnalyserNode ──► wawa-lipsync ──► morph targets on avatar
       │
-      ├── Remote audio stream ──► Web Audio analyser ──► Lipsync ──► morph targets on avatar
-      │
-      ├── Agent transcript ──► endSessionPhrase check ──► onSessionEnd()
+      ├── Transcript ──► endSessionPhrase check ──► onSessionEnd()
       │
       └── sessionTimeout ──► onSessionEnd()
 ```
@@ -303,23 +355,88 @@ WebRTC session opens (RealtimeAgent with your systemPrompt + tools)
 
 ```
 src/
-├── index.ts               ← public exports
-├── types.ts               ← agent props
-├── OpenAIAvatarAgent.tsx  ← main components
-├── XXXXXXAvatarAgent.tsx
-├── ....
+├── index.ts                    ← public exports
+├── types.ts                    ← shared prop types
+├── AvatarAgent.tsx             ← platform-agnostic core component
+├── OpenAIAvatarAgent.tsx       ← provider convenience wrappers
+├── DeepgramAvatarAgent.tsx
+├── ElevenLabsAvatarAgent.tsx
+├── VapiAvatarAgent.tsx
+├── LiveKitAvatarAgent.tsx
+├── avatars/
+│   └── Camila.tsx              ← built-in Camila avatar
+├── adapters/
+│   ├── SessionAdapter.ts       ← adapter interface
+│   ├── openai/
+│   ├── deepgram/
+│   ├── elevenlabs/
+│   ├── vapi/
+│   └── livekit/
 ├── scene/
-│   ├── AvatarScene.tsx    ← camera, lights, mobile transparency fix
-│   ├── Avatar.tsx         ← skinned mesh, morph targets, blink, lipsync
-│   └── Background.tsx     ← scene.background from image array
-├── audio/
-│   ├── lipsyncManager.ts  ← singleton Lipsync instance
-│   ├── useLipsync.ts      ← wires audio stream into lipsync analyser
-│   └── useAudio.ts        ← mic + remote stream recorder
-├── session/
-│   ├── useAgentSession.ts ← connect / disconnect / mute
-│   └── codecUtils.ts      ← WebRTC audio format helpers
-└── utils/
-    ├── isMobile.ts
-    └── cn.ts
+│   ├── AvatarScene.tsx         ← camera, lights, transparency fix
+│   └── Background.tsx          ← scene background from image array
+└── audio/
+    ├── lipsyncManager.ts       ← singleton Lipsync instance
+    ├── useLipsync.ts           ← wires audio stream into lipsync analyser
+    └── useAudio.ts             ← mic monitoring
 ```
+
+## Available Avatars
+
+- Camila
+
+all avatars have a component and 3D models were delivered though jsDelivr via this Repo's `models` branch.
+
+### This Avatar Library is Growing!
+
+## How to create your own Avatar Component
+
+first you should make sure your 3D model has face morphs with morph targets. These morph targets can be controlled via react three fiber. Then convert model to be usable in JS runtime using https://github.com/pmndrs/gltfjsx
+
+```
+1. create your 3D model with face morphs
+2. convert your model using by running: npx gltfjsx your_model.glb --transform
+3. this will provide an optimized glb and model JSX file. Adopt the JSX file to follow the format
+4. now you have your model and react component
+```
+
+## Contribution Guide
+
+- To contribute to package source code raise PRs to `main` branch
+- To contribute to 3D models: raise the PR to `models` branch adding a separate folder with the avatar name and GLB file in it. Then raise a PR to `main` to add the avatar component — follow the format in `src/avatars/Camila.tsx`.
+
+---
+
+## Sponsoring
+
+**agentic-avatars is free, open-source, and maintained in personal time.**
+
+If your product ships AI-powered conversations and this library saves you weeks of WebRTC wrangling, lip-sync work, and provider integration — consider sponsoring. Even a small recurring amount keeps new avatar models coming, more providers supported, and bugs fixed fast.
+
+[**Sponsor on GitHub →**](https://github.com/sponsors/navodPeiris)
+
+---
+
+## Citing this project
+
+If you use agentic-avatars in academic work, a research demo, or a published product, a citation or acknowledgement is appreciated.
+
+**BibTeX**
+
+```bibtex
+@software{peiris2025agenticavatars,
+  author  = {Peiris, Navod},
+  title   = {agentic-avatars: Zero-Infrastructure Lip-Synced 3D avatar components for AI voice agents},
+  year    = {2026},
+  url     = {https://github.com/navodPeiris/agentic-avatars},
+  note    = {npm: agentic-avatars}
+}
+```
+
+**Plain text**
+
+> Navod Peiris. _agentic-avatars: Zero-Infrastructure Lip-Synced 3D avatar components for AI voice agents._ 2026. https://github.com/navodPeiris/agentic-avatars
+
+**Acknowledgement (for README or paper footnote)**
+
+> 3D avatar and lip-sync powered by [agentic-avatars](https://github.com/navodPeiris/agentic-avatars).
