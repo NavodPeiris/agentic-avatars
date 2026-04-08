@@ -12,22 +12,15 @@ Supported providers: **OpenAI Realtime API**, **Deepgram Voice Agents**, **Eleve
 
 ## Requirements
 
-| Peer dependency | Version |
-| --------------- | ------- |
-| `react`         | ≥ 18    |
-| `react-dom`     | ≥ 18    |
+| Peer dependency      | Version |
+| -------------------- | ------- |
+| `@react-three/drei`  | ≥ 10    |
+| `@react-three/fiber` | ≥ 9     |
+| `react`              | ≥ 18    |
+| `react-dom`          | ≥ 18    |
+| `three`              | ≥ 0.160 |
 
 ---
-
-## Pre-requisites
-
-your project should have following installed:
-
-```
-@react-three/drei
-@react-three/fiber
-three
-```
 
 ## Installation
 
