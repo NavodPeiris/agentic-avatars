@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="top_banner.png" alt="Agentic Avatars" width="800" />
+<img src="https://raw.githubusercontent.com/NavodPeiris/agentic-avatars/main/top_banner.png" alt="Agentic Avatars" width="800" />
 
 # agentic-avatars
 
