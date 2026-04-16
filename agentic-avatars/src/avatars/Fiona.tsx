@@ -119,7 +119,7 @@ export function Fiona() {
   return (
     <group ref={group} dispose={null}>
       <group name="Scene">
-        <group name="Armature" rotation={[Math.PI / 2, 0, 0]} scale={0.01}>
+        <group name="Armature" rotation={[Math.PI / 2, 0, 0]} scale={0.0098}>
           <primitive object={nodes.CC_Base_BoneRoot} />
         </group>
         <skinnedMesh name="Camisole" geometry={sm("Camisole").geometry} material={materials.Dress} skeleton={sm("Camisole").skeleton} rotation={[Math.PI / 2, 0, 0]} scale={0.01} />

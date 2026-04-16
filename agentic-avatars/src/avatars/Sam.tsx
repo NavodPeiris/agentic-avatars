@@ -119,7 +119,7 @@ export function Sam() {
   return (
     <group ref={group} dispose={null}>
       <group name="Scene">
-        <group name="Armature" rotation={[Math.PI / 2, 0, 0]} scale={0.01}>
+        <group name="Armature" rotation={[Math.PI / 2, 0, 0]} scale={0.0098}>
           <primitive object={nodes.CC_Base_BoneRoot} />
         </group>
         <group name="CC_Base_Eye" rotation={[Math.PI / 2, 0, 0]} scale={0.01}>
