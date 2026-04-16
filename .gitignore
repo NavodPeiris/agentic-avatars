@@ -4,3 +4,4 @@ node_modules
 .env
 models
 .claude
+prod-env

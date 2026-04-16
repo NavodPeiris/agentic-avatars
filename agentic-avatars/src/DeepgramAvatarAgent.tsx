@@ -23,7 +23,7 @@ import type { DeepgramAvatarAgentProps } from './types';
  *   ```ts
  *   llm={{ provider: 'open_ai', model: 'gpt-4o-mini' }}
  *   ```
- *   Supported providers: `open_ai` | `anthropic` | `x_ai` | `groq` | `amazon` | `google`.
+ *   Supported providers: `open_ai` | `anthropic` | `google` | `aws_bedrock`.
  *
  * @param voice - Deepgram TTS voice name. Defaults to `"aura-2-thalia-en"`.
  *   See https://developers.deepgram.com/docs/tts-models for available voices.

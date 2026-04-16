@@ -2,6 +2,10 @@
 
 <img src="https://raw.githubusercontent.com/NavodPeiris/agentic-avatars/main/top_banner.png" alt="Agentic Avatars" width="800" />
 
+<img alt="NPM Version" src="https://img.shields.io/npm/v/agentic-avatars">
+<img alt="NPM Downloads" src="https://img.shields.io/npm/dy/agentic-avatars">
+<img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/NavodPeiris/agentic-avatars">
+
 # agentic-avatars
 
 Zero-Infrastructure Lip-Synced 3D avatar components for AI voice agents. Drop it into any React app, pick a provider, and hand it your credentials — everything else is handled internally. **No Infrastructure provisioning for 3D avatars. Runs Directly on Browser.**
@@ -12,23 +16,22 @@ Supported providers: **OpenAI Realtime API**, **Deepgram Voice Agents**, **Eleve
 
 ## Requirements
 
-| Peer dependency      | Version  |
-| -------------------- | -------- |
-| `@react-three/drei`  | ≥ 10     |
-| `@react-three/fiber` | ≥ 9      |
-| `react`              | ≥ 18     |
-| `react-dom`          | ≥ 18     |
-| `three`              | ≥ 0.160  |
-| `@deepgram/sdk`      | ≥ 3.13.0 |
-| `@elevenlabs/react`  | ≥ 1.0.2  |
-| `@openai/agents`     | ≥ 0.0.11 |
-| `@vapi-ai/web`       | ≥ 2.5.2  |
-| `livekit-client`     | 2.16.1   |
+| Peer dependency      | Version |
+| -------------------- | ------- |
+| `@react-three/drei`  | ≥ 10    |
+| `@react-three/fiber` | ≥ 9     |
+| `react`              | ≥ 18    |
+| `react-dom`          | ≥ 18    |
+| `three`              | ≥ 0.160 |
+| `@deepgram/sdk`      | ≥ 5.0.0 |
+| `@elevenlabs/react`  | ≥ 1.0.2 |
+| `@vapi-ai/web`       | ≥ 2.5.2 |
+| `livekit-client`     | 2.16.1  |
 
-Optional depending on your provider usecase:  
+Optional depending on your provider usecase:
+
 `@deepgram/sdk`  
 `@elevenlabs/react`  
-`@openai/agents`  
 `@vapi-ai/web`  
 `livekit-client`
 
@@ -57,14 +60,14 @@ npm install agentic-avatars
 Uses the OpenAI Realtime API over WebRTC. Requires a server-side endpoint to mint ephemeral session keys.
 
 ```tsx
-import { OpenAIAvatarAgent } from "agentic-avatars";
+import { OpenAIAvatarAgent } from "agentic-avatars/openai";
 
 <OpenAIAvatarAgent
   systemPrompt="You are a friendly AI interviewer. Ask three questions, then say 'This is the end'."
   getEphemeralKey={async () => {
     const res = await fetch("/api/realtime-session");
     const { client_secret } = await res.json();
-    return client_secret.value;
+    return client_secret;
   }}
 />;
 ```
@@ -73,16 +76,21 @@ import { OpenAIAvatarAgent } from "agentic-avatars";
 
 ```ts
 // app/api/realtime-session/route.ts  (Next.js App Router)
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.REACT_APP_OPENAI_API_KEY,
+});
+
 export async function GET() {
-  const res = await fetch("https://api.openai.com/v1/realtime/sessions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
+  const session = await openai.realtime.clientSecrets.create({
+    session: {
+      type: "realtime",
+      model: "gpt-realtime-mini-2025-10-06",
     },
-    body: JSON.stringify({ model: "gpt-4o-realtime-preview-2024-12-17" }),
   });
-  return Response.json(await res.json());
+
+  return Response.json({ client_secret: session.value });
 }
 ```
 
@@ -102,7 +110,7 @@ export async function GET() {
 Uses the Deepgram Voice Agent API over WebSocket. Handles STT, LLM, and TTS in a single connection. **Never expose your Deepgram API key in the browser** — proxy it through your backend.
 
 ```tsx
-import { DeepgramAvatarAgent } from "agentic-avatars";
+import { DeepgramAvatarAgent } from "agentic-avatars/deepgram";
 
 <DeepgramAvatarAgent
   getApiKey={async () => {
@@ -134,7 +142,7 @@ import { DeepgramAvatarAgent } from "agentic-avatars";
 Uses the ElevenLabs Conversational AI SDK. Configure your agent in the ElevenLabs dashboard and pass its ID here.
 
 ```tsx
-import { ElevenLabsAvatarAgent } from "agentic-avatars";
+import { ElevenLabsAvatarAgent } from "agentic-avatars/elevenlabs";
 
 // Public agent (no auth required)
 <ElevenLabsAvatarAgent
@@ -181,7 +189,7 @@ export async function GET(req: Request) {
 Uses the Vapi Web SDK. Configure your assistant in the Vapi dashboard or pass an inline configuration object.
 
 ```tsx
-import { VapiAvatarAgent } from "agentic-avatars";
+import { VapiAvatarAgent } from "agentic-avatars/vapi";
 
 // Using a pre-configured assistant ID
 <VapiAvatarAgent
@@ -218,7 +226,7 @@ import { VapiAvatarAgent } from "agentic-avatars";
 Uses LiveKit Agents over WebRTC. Your LiveKit agent must be running server-side and the token must grant access to the correct room.
 
 ```tsx
-import { LiveKitAvatarAgent } from "agentic-avatars";
+import { LiveKitAvatarAgent } from "agentic-avatars/livekit";
 
 <LiveKitAvatarAgent
   serverUrl="wss://my-project.livekit.cloud"
@@ -275,35 +283,15 @@ All provider components accept these additional props:
 
 The library ships a built-in avatar that is used by default. You can also pass any React component that renders a 3D scene element (intended for use inside a `@react-three/fiber` `Canvas`).
 
-```tsx
-import { DeepgramAvatarAgent, Jane } from "agentic-avatars";
-
-// Default — Jane is used automatically when avatarComponent is omitted
-<DeepgramAvatarAgent getApiKey={...} />
-
-// Explicit
-<DeepgramAvatarAgent
-  getApiKey={...}
-  avatarComponent={Jane}
-/>
-
-// Custom avatar component
-function MyAvatar() {
-  // must be a valid R3F scene element
-  return <mesh>...</mesh>;
-}
-
-<DeepgramAvatarAgent
-  getApiKey={...}
-  avatarComponent={MyAvatar}
-/>
-```
-
 ### Available avatars
 
-| Export | Description                                                                 |
-| ------ | --------------------------------------------------------------------------- |
-| `Jane` | Female avatar with a face rig. Loads the model from jsDelivr automatically. |
+| Export  | Description                                                                 |
+| ------- | --------------------------------------------------------------------------- |
+| `Jane`  | Female avatar with a face rig. Loads the model from jsDelivr automatically. |
+| `Fiona` | Female avatar with a face rig. Loads the model from jsDelivr automatically. |
+| `Sam`   | Male avatar with a face rig. Loads the model from jsDelivr automatically.   |
+
+Thanks [Ravindu Wijethunga](https://github.com/rvndudz) for helping with 3D models.
 
 ---
 
@@ -312,7 +300,8 @@ function MyAvatar() {
 For full layout control, use `AvatarAgent` directly with an adapter hook. This lets you compose the avatar into your own UI without the built-in container styles.
 
 ```tsx
-import { AvatarAgent, useDeepgramAdapter } from "agentic-avatars";
+import { AvatarAgent } from "agentic-avatars";
+import { useDeepgramAdapter } from "agentic-avatars/deepgram";
 
 function MyPage() {
   const adapter = useDeepgramAdapter({
@@ -353,9 +342,11 @@ Provider adapter connects (WebRTC / WebSocket)
       │
       ├── Audio stream ──► Web Audio AnalyserNode ──► wawa-lipsync ──► morph targets on avatar
       │
-      ├── Transcript ──► endSessionPhrase check ──► onSessionEnd()
+      ├── Transcript ──► endSessionPhrase check ──► onSessionEnd(), End
       │
-      └── sessionTimeout ──► onSessionEnd()
+      ├── User clicks end ──► End
+      |
+      └── sessionTimeout ──► onSessionEnd(), End
 ```
 
 ---

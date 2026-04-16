@@ -20,8 +20,16 @@ import type { OpenAIAvatarAgentProps } from './types';
  *   }}
  *   ```
  *
- * @param tools - Optional tools the agent can call, created with the `tool()`
- *   helper from `@openai/agents/realtime`.
+ * @param tools - Optional tools the agent can call.
+ *  Each tool is a plain object with `name`, `description`, `parameters` (JSON Schema),
+ *  ```ts
+ *  {
+ *    name: string;
+ *    description: string;
+ *    parameters: Record<string, unknown>;
+ *    handler?: (args: Record<string, unknown>) => unknown | Promise<unknown>;
+ *  }
+ *  ```
  *
  * @param agentVoice - OpenAI Realtime voice ID. Defaults to `"sage"`.
  *   Options: `alloy` | `ash` | `ballad` | `coral` | `echo` | `sage` | `shimmer` | `verse`.

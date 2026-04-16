@@ -7,10 +7,7 @@
     "jsx": "react-jsx",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "declaration": true,
-    "rootDir": "src",
-    "outDir": "dist"
+    "skipLibCheck": true
   },
   "include": ["src"]
 }

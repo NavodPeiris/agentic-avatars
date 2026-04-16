@@ -1,25 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RealtimeAgent } from '@openai/agents/realtime';
 import { useAgentSession } from '../../session/useAgentSession';
 import type { SessionAdapter } from '../SessionAdapter';
-import type { tool } from '@openai/agents/realtime';
+import type { OpenAIRealtimeTool } from '../../types';
 
 export interface UseOpenAIAdapterOptions {
   systemPrompt: string;
-  tools?: ReturnType<typeof tool>[];
+  tools?: OpenAIRealtimeTool[];
   agentVoice?: string;
+  model?: string;
   getEphemeralKey: () => Promise<string>;
 }
 
 /**
  * OpenAI Realtime adapter.
- * Wraps useAgentSession with the audio-element lifecycle, VAD configuration,
- * and the initial silent greeting that kicks off the conversation.
+ * Establishes a WebRTC connection directly to the OpenAI Realtime API —
+ * no `@openai/agents` SDK required.
  */
 export function useOpenAIAdapter({
   systemPrompt,
   tools = [],
   agentVoice = 'sage',
+  model = 'gpt-4o-mini-realtime-preview',
   getEphemeralKey,
 }: UseOpenAIAdapterOptions): SessionAdapter {
   // ── Audio element (lives for the lifetime of this hook) ───────────────
@@ -42,29 +43,12 @@ export function useOpenAIAdapter({
     };
   }, [audioElement]);
 
-  // ── RealtimeAgent (rebuilt only when voice changes) ───────────────────
-
-  const agent = useMemo(
-    () =>
-      new RealtimeAgent({
-        name: 'avatarAgent',
-        voice: agentVoice,
-        instructions: systemPrompt,
-        tools,
-      }),
-    // Intentionally omitting systemPrompt/tools — injected fresh on each connect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentVoice],
-  );
-
   // ── Transcript subscriber registry ────────────────────────────────────
 
   const subscribersRef = useRef(
     new Set<(role: 'assistant' | 'user', text: string) => void>(),
   );
 
-  // Stable dispatcher — safe to pass as onTranscriptMessage without causing
-  // useAgentSession to recreate its connect callback on every render.
   const handleTranscript = useCallback((role: 'assistant' | 'user', text: string) => {
     subscribersRef.current.forEach((h) => h(role, text));
   }, []);
@@ -79,7 +63,7 @@ export function useOpenAIAdapter({
     mute,
   } = useAgentSession({ onTranscriptMessage: handleTranscript });
 
-  // ── VAD configuration + silent greeting sent once per connect ─────────
+  // ── VAD + initial greeting once connected ─────────────────────────────
 
   useEffect(() => {
     if (status !== 'CONNECTED') return;
@@ -111,10 +95,17 @@ export function useOpenAIAdapter({
   // ── Connection ────────────────────────────────────────────────────────
 
   const connect = useCallback(async () => {
-    // Inject the latest systemPrompt each time we connect
-    agent.instructions = systemPrompt;
-    await rawConnect({ getEphemeralKey, agent, audioElement });
-  }, [agent, systemPrompt, getEphemeralKey, audioElement, rawConnect]);
+    await rawConnect({
+      getEphemeralKey,
+      agent: {
+        instructions: systemPrompt,
+        voice: agentVoice,
+        model,
+        tools,
+      },
+      audioElement,
+    });
+  }, [rawConnect, getEphemeralKey, systemPrompt, agentVoice, model, tools, audioElement]);
 
   const disconnect = useCallback(() => {
     const stream = audioElement?.srcObject as MediaStream | null;
@@ -126,12 +117,10 @@ export function useOpenAIAdapter({
     rawDisconnect();
   }, [audioElement, rawDisconnect]);
 
-  // ── Lipsync stream — reactive state so useLipsync re-runs when it arrives ──
+  // ── Lipsync stream ────────────────────────────────────────────────────
 
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
-  // audioElement.srcObject is set by the OpenAI WebRTC transport after CONNECTED.
-  // Poll briefly until the track lands, then stop.
   useEffect(() => {
     if (status !== 'CONNECTED' || !audioElement) return;
 
@@ -142,7 +131,6 @@ export function useOpenAIAdapter({
         setRemoteStream(stream);
         clearInterval(poll);
       } else if (++attempts > 50) {
-        // give up after ~2.5 s
         clearInterval(poll);
       }
     }, 50);
@@ -158,9 +146,7 @@ export function useOpenAIAdapter({
   const subscribeToTranscript = useCallback(
     (handler: (role: 'assistant' | 'user', text: string) => void): (() => void) => {
       subscribersRef.current.add(handler);
-      return () => {
-        subscribersRef.current.delete(handler);
-      };
+      return () => { subscribersRef.current.delete(handler); };
     },
     [],
   );

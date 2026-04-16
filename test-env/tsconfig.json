@@ -20,7 +20,12 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "paths": {
-      "agentic-avatars": ["../agentic-avatars/src/index.ts"]
+      "agentic-avatars": ["../agentic-avatars/src/index.ts"],
+      "agentic-avatars/openai": ["../agentic-avatars/src/openai.ts"],
+      "agentic-avatars/vapi": ["../agentic-avatars/src/vapi.ts"],
+      "agentic-avatars/elevenlabs": ["../agentic-avatars/src/elevenlabs.ts"],
+      "agentic-avatars/livekit": ["../agentic-avatars/src/livekit.ts"],
+      "agentic-avatars/deepgram": ["../agentic-avatars/src/deepgram.ts"]
     }
   },
   "include": [

@@ -1,4 +1,5 @@
-import { Jane, VapiAvatarAgent } from "agentic-avatars";
+import { VapiAvatarAgent } from "agentic-avatars/vapi";
+import { Jane } from "agentic-avatars";
 
 export default function VapiAvatarTest() {
   return (

@@ -1,4 +1,5 @@
-import { ElevenLabsAvatarAgent, Jane } from "agentic-avatars";
+import { ElevenLabsAvatarAgent } from "agentic-avatars/elevenlabs";
+import { Jane } from "agentic-avatars";
 
 export default function ElevenLabsAvatarTest() {
   return (

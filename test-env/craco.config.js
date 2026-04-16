@@ -3,10 +3,17 @@ const path = require('path');
 module.exports = {
   webpack: {
     alias: {
-      'agentic-avatars': path.resolve(__dirname, '../agentic-avatars/src/index.ts'),
+      'agentic-avatars$': path.resolve(__dirname, '../agentic-avatars/src/index.ts'),
+      'agentic-avatars/openai': path.resolve(__dirname, '../agentic-avatars/src/openai.ts'),
+      'agentic-avatars/vapi': path.resolve(__dirname, '../agentic-avatars/src/vapi.ts'),
+      'agentic-avatars/elevenlabs': path.resolve(__dirname, '../agentic-avatars/src/elevenlabs.ts'),
+      'agentic-avatars/livekit': path.resolve(__dirname, '../agentic-avatars/src/livekit.ts'),
+      'agentic-avatars/deepgram': path.resolve(__dirname, '../agentic-avatars/src/deepgram.ts'),
       'react': path.resolve(__dirname, 'node_modules/react'),
       'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
       'three': path.resolve(__dirname, 'node_modules/three'),
+      '@openai/agents/realtime': path.resolve(__dirname, 'node_modules/@openai/agents/dist/realtime/index.mjs'),
+      '@openai/agents': path.resolve(__dirname, 'node_modules/@openai/agents'),
     },
     configure: (webpackConfig) => {
       // Allow imports from outside src/ (agentic-avatars lives one level up)

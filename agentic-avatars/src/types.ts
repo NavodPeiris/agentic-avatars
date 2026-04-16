@@ -1,5 +1,4 @@
 import type React from 'react';
-import type { tool } from '@openai/agents/realtime';
 
 export type SessionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED';
 
@@ -34,12 +33,28 @@ interface BaseAvatarAgentProps {
 
 // ── OpenAI ────────────────────────────────────────────────────────────────────
 
+/** A function tool exposed to the OpenAI Realtime agent. */
+export interface OpenAIRealtimeTool {
+  /** Name the model uses to call this tool. */
+  name: string;
+  /** Description of what the tool does. */
+  description: string;
+  /** JSON Schema object for the tool's parameters. */
+  parameters: Record<string, unknown>;
+  /** Called when the model invokes the tool. Return value is sent back as the tool output. */
+  handler?: (args: Record<string, unknown>) => unknown | Promise<unknown>;
+}
+
 export interface OpenAIAvatarAgentProps extends BaseAvatarAgentProps {
   /** System prompt injected into the realtime agent on connect. */
   systemPrompt: string;
 
-  /** Tools created with the `tool()` helper from `@openai/agents/realtime`. */
-  tools?: ReturnType<typeof tool>[];
+  /**
+   * Tools to expose to the realtime agent.
+   * Each entry is a plain object with `name`, `description`, `parameters` (JSON Schema),
+   * and an optional `handler` function called when the model invokes the tool.
+   */
+  tools?: OpenAIRealtimeTool[];
 
   /** Must return a valid OpenAI ephemeral key for the realtime session. */
   getEphemeralKey: () => Promise<string>;
@@ -102,7 +117,7 @@ export interface DeepgramAvatarAgentProps extends BaseAvatarAgentProps {
 
   /** LLM provider and model. Defaults to OpenAI gpt-4o-mini. */
   llm?: {
-    provider?: 'open_ai' | 'anthropic' | 'x_ai' | 'groq' | 'amazon' | 'google';
+    provider?: 'open_ai' | 'anthropic' | 'google' | 'aws_bedrock';
     model?: string;
   };
 

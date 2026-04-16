@@ -136,6 +136,15 @@ cd agentic-avatars
 # dry run — inspect what will be included
 npm pack --dry-run
 
+# build the dist
+npm build
+
+# log into npm
+npm login
+
+# access token register
+npm config set //registry.npmjs.org/:_authToken=<auth token>
+
 # publish
 npm publish --access public
 ```

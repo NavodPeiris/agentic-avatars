@@ -1,4 +1,5 @@
-import { LiveKitAvatarAgent, Jane } from "agentic-avatars";
+import { LiveKitAvatarAgent } from "agentic-avatars/livekit";
+import { Jane } from "agentic-avatars";
 
 // ── Minimal LiveKit access token builder using the Web Crypto API ─────────────
 // WARNING: exposes your API secret in the browser bundle. For testing only.

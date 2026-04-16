@@ -1,4 +1,5 @@
-import { DeepgramAvatarAgent, Jane } from "agentic-avatars";
+import { DeepgramAvatarAgent } from "agentic-avatars/deepgram";
+import { Jane } from "agentic-avatars";
 
 export default function DeepgramAvatarTest() {
   return (

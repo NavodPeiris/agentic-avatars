@@ -3,9 +3,11 @@
  *
  * Install: npm install @deepgram/sdk
  * Docs:    https://developers.deepgram.com/docs/voice-agent
+ *
+ * Supports @deepgram/sdk v3 and v5.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createClient, AgentEvents } from '@deepgram/sdk';
+import { DeepgramClient } from '@deepgram/sdk';
 import { getLipsyncManager, resetLipsyncManager } from '../../audio/lipsyncManager';
 import type { SessionAdapter } from '../SessionAdapter';
 import type { SessionStatus } from '../../types';
@@ -25,7 +27,7 @@ export interface UseDeepgramAdapterOptions {
    * Defaults to OpenAI gpt-4o-mini.
    */
   llm?: {
-    provider?: 'open_ai' | 'anthropic' | 'x_ai' | 'groq' | 'amazon' | 'google';
+    provider?: 'open_ai' | 'anthropic' | 'google' | 'aws_bedrock';
     model?: string;
   };
 
@@ -77,7 +79,6 @@ function pcm16ToFloat32(raw: ArrayBuffer): Float32Array {
   return out;
 }
 
-
 const OUTPUT_SAMPLE_RATE = 16000;
 
 export function useDeepgramAdapter({
@@ -90,7 +91,7 @@ export function useDeepgramAdapter({
   const [status, setStatus] = useState<SessionStatus>('DISCONNECTED');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const connectionRef = useRef<any>(null);
+  const socketRef = useRef<any>(null);
   const micCtxRef = useRef<AudioContext | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const playCtxRef = useRef<AudioContext | null>(null);
@@ -112,8 +113,6 @@ export function useDeepgramAdapter({
     const ctx = playCtxRef.current;
     if (!ctx) return;
 
-    // Create a real AnalyserNode in the playback AudioContext so lipsync gets
-    // actual frequency data from the speech rather than a synthetic shape.
     const FFT_SIZE = 2048;
     const analyser = ctx.createAnalyser();
     analyser.fftSize = FFT_SIZE;
@@ -157,18 +156,15 @@ export function useDeepgramAdapter({
     if (float32.length === 0) return;
 
     const buffer = ctx.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
-    buffer.copyToChannel(float32 as any, 0);
+    buffer.copyToChannel(float32 as unknown as Float32Array<ArrayBuffer>, 0);
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    // Route through the analyser so lipsync sees the real audio spectrum.
-    // Fall back to destination directly if analyser isn't ready yet.
     source.connect(analyserRef.current ?? ctx.destination);
 
     const startTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);
     source.start(startTime);
     nextPlayTimeRef.current = startTime + buffer.duration;
-
   }, []);
 
   // ── Mic capture ───────────────────────────────────────────────────────────
@@ -192,10 +188,10 @@ export function useDeepgramAdapter({
     micNodeRef.current = workletNode;
 
     workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
-      const conn = connectionRef.current;
-      if (isMutedRef.current || !conn) return;
+      const socket = socketRef.current;
+      if (isMutedRef.current || !socket) return;
       try {
-        conn.send(e.data);
+        socket.sendMedia(e.data);
       } catch { /* connection may have closed */ }
     };
 
@@ -220,96 +216,84 @@ export function useDeepgramAdapter({
 
     try {
       const apiKey = await getApiKey();
-      const client = createClient(apiKey);
+      const client = new DeepgramClient({ apiKey });
 
-      // Create playback AudioContext in user gesture chain
       playCtxRef.current = new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE });
       nextPlayTimeRef.current = 0;
 
-      const connection = client.agent();
-      connectionRef.current = connection;
-
-      // The SDK calls Buffer.from() on binary WebSocket frames which doesn't exist in
-      // browsers. Override onmessage to handle binary audio directly and forward text
-      // messages to the SDK's own handler so typed events (Welcome, SettingsApplied…)
-      // are still emitted correctly.
-      const rawConn = connection.conn as WebSocket | null;
-      if (rawConn) {
-        rawConn.binaryType = 'arraybuffer';
-        rawConn.onmessage = (event: MessageEvent) => {
-          if (event.data instanceof ArrayBuffer) {
-            playPcm16(event.data);
-          } else {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (connection as any).handleMessage(event);
-          }
-        };
-      }
-
-      // ── Handle JSON messages from agent ───────────────────────────────
-      connection.on(AgentEvents.Welcome, () => {
-        connection.configure({
-          audio: {
-            input: { encoding: 'linear16', sample_rate: 16000 },
-            output: { encoding: 'linear16', sample_rate: OUTPUT_SAMPLE_RATE, container: 'none' },
-          },
-          agent: {
-            listen: {
-              provider: { type: 'deepgram', model: sttModel },
-            },
-            think: {
-              provider: {
-                type: llm.provider ?? 'open_ai',
-                model: llm.model ?? 'gpt-4o-mini',
-              },
-              ...(systemPrompt && { prompt: systemPrompt }),
-            },
-            speak: {
-              provider: { type: 'deepgram', model: voice },
-            },
-          },
-        });
+      const socket = await client.agent.v1.connect({
+        Authorization: `Token ${apiKey}`,
       });
+      socketRef.current = socket;
 
-      connection.on(AgentEvents.SettingsApplied, async () => {
-        // Ready — start mic and mark connected
-        try { await startMic(); } catch (err) {
-          console.warn('[DeepgramAdapter] mic access failed:', err);
-        }
-        // Keep-alive every 8 seconds
-        keepAliveRef.current = setInterval(() => {
-          const conn = connectionRef.current;
-          if (conn?.isConnected()) {
-            conn.keepAlive();
-          }
-        }, 8000);
-        setStatus('CONNECTED');
-      });
-
+      // ── JSON message handling ─────────────────────────────────────────
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      connection.on(AgentEvents.ConversationText, (msg: any) => {
-        if (msg.role && msg.content) {
-          const role = msg.role === 'assistant' ? 'assistant' : 'user';
-          subscribersRef.current.forEach((h) => h(role, msg.content));
+      socket.on('message', (message: any) => {
+        if (!message || typeof message !== 'object') return;
+
+        switch (message.type) {
+          case 'Welcome':
+            socket.sendSettings({
+              type: 'Settings',
+              audio: {
+                input: { encoding: 'linear16', sample_rate: 16000 },
+                output: { encoding: 'linear16', sample_rate: OUTPUT_SAMPLE_RATE, container: 'none' },
+              },
+              agent: {
+                listen: {
+                  provider: { version: 'v1', type: 'deepgram', model: sttModel },
+                },
+                think: {
+                  provider: {
+                    type: llm.provider ?? 'open_ai',
+                    model: llm.model ?? 'gpt-4o-mini',
+                  },
+                  ...(systemPrompt && { prompt: systemPrompt }),
+                },
+                speak: {
+                  provider: { type: 'deepgram', model: voice },
+                },
+              },
+            });
+            break;
+
+          case 'SettingsApplied':
+            startMic().catch((err) => {
+              console.warn('[DeepgramAdapter] mic access failed:', err);
+            });
+            keepAliveRef.current = setInterval(() => {
+              const s = socketRef.current;
+              if (s?.readyState === 1 /* OPEN */) {
+                s.sendKeepAlive({ type: 'KeepAlive' });
+              }
+            }, 8000);
+            setStatus('CONNECTED');
+            break;
+
+          case 'ConversationText':
+            if (message.role && message.content) {
+              const role = message.role === 'assistant' ? 'assistant' : 'user';
+              subscribersRef.current.forEach((h) => h(role, message.content));
+            }
+            break;
+
+          case 'UserStartedSpeaking':
+            if (playCtxRef.current) {
+              nextPlayTimeRef.current = playCtxRef.current.currentTime;
+            }
+            break;
+
+          case 'Error':
+            console.error('[DeepgramAdapter] agent error:', message);
+            break;
         }
       });
 
-      connection.on(AgentEvents.UserStartedSpeaking, () => {
-        // Clear scheduled agent audio so the agent stops immediately
-        if (playCtxRef.current) {
-          nextPlayTimeRef.current = playCtxRef.current.currentTime;
-        }
-      });
-
-      connection.on(AgentEvents.Error, (err: unknown) => {
-        console.error('[DeepgramAdapter] error:', err);
-      });
-
-      connection.on(AgentEvents.Close, () => {
+      socket.on('close', () => {
         clearInterval(keepAliveRef.current ?? undefined);
         keepAliveRef.current = null;
         stopMic();
-        connectionRef.current = null;
+        socketRef.current = null;
         if (playCtxRef.current?.state !== 'closed') {
           try { playCtxRef.current?.close(); } catch { /* ignore */ }
         }
@@ -317,11 +301,32 @@ export function useDeepgramAdapter({
         setStatus('DISCONNECTED');
       });
 
-      // Wait for WebSocket to open
-      await new Promise<void>((resolve, reject) => {
-        connection.once(AgentEvents.Open, () => resolve());
-        connection.once(AgentEvents.Error, (err: unknown) => reject(err));
+      socket.on('error', (err: unknown) => {
+        console.error('[DeepgramAdapter] socket error:', err);
       });
+
+      // Start the WebSocket connection and register event handlers.
+      // After connect(), hook into the underlying ReconnectingWebSocket to
+      // intercept binary audio frames before the SDK tries to parse them
+      // as text (avoids Buffer.from() errors in browsers).
+      socket.connect();
+
+      const rawWs = socket.socket as unknown as WebSocket;
+      if (rawWs?.addEventListener) {
+        rawWs.binaryType = 'arraybuffer';
+        rawWs.addEventListener(
+          'message',
+          (event: MessageEvent) => {
+            if (event.data instanceof ArrayBuffer) {
+              playPcm16(event.data);
+              event.stopImmediatePropagation();
+            }
+          },
+          true, // capture phase — runs before SDK listeners
+        );
+      }
+
+      await socket.waitForOpen();
     } catch (err) {
       console.error('[DeepgramAdapter] connect failed:', err);
       clearInterval(keepAliveRef.current ?? undefined);
@@ -329,7 +334,7 @@ export function useDeepgramAdapter({
       stopMic();
       if (playCtxRef.current?.state !== 'closed') playCtxRef.current?.close();
       playCtxRef.current = null;
-      connectionRef.current = null;
+      socketRef.current = null;
       setStatus('DISCONNECTED');
       throw err;
     }
@@ -339,12 +344,10 @@ export function useDeepgramAdapter({
     clearInterval(keepAliveRef.current ?? undefined);
     keepAliveRef.current = null;
     stopMic();
-    const conn = connectionRef.current;
-    if (conn) {
-      connectionRef.current = null;
-      try {
-        conn.disconnect();
-      } catch { /* already closed */ }
+    const socket = socketRef.current;
+    if (socket) {
+      socketRef.current = null;
+      try { socket.close(); } catch { /* already closed */ }
     }
     if (playCtxRef.current?.state !== 'closed') {
       try { playCtxRef.current?.close(); } catch { /* ignore */ }
@@ -357,7 +360,6 @@ export function useDeepgramAdapter({
     isMutedRef.current = muted;
   }, []);
 
-  // Deepgram plays audio via Web Audio API — no MediaStream
   const remoteStream: MediaStream | null = null;
 
   const subscribeToTranscript = useCallback(
