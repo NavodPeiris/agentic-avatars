@@ -4,11 +4,9 @@ import type { SessionAdapter } from '../SessionAdapter';
 import type { OpenAIRealtimeTool } from '../../types';
 
 export interface UseOpenAIAdapterOptions {
-  systemPrompt: string;
-  tools?: OpenAIRealtimeTool[];
-  agentVoice?: string;
-  model?: string;
   getEphemeralKey: () => Promise<string>;
+  agentVoice?: string;
+  tools?: OpenAIRealtimeTool[];
 }
 
 /**
@@ -17,11 +15,9 @@ export interface UseOpenAIAdapterOptions {
  * no `@openai/agents` SDK required.
  */
 export function useOpenAIAdapter({
-  systemPrompt,
-  tools = [],
-  agentVoice = 'sage',
-  model = 'gpt-4o-mini-realtime-preview',
   getEphemeralKey,
+  agentVoice,
+  tools,
 }: UseOpenAIAdapterOptions): SessionAdapter {
   // ── Audio element (lives for the lifetime of this hook) ───────────────
 
@@ -65,22 +61,9 @@ export function useOpenAIAdapter({
 
   // ── VAD + initial greeting once connected ─────────────────────────────
 
+  // Kick off the initial agent greeting once connected.
   useEffect(() => {
     if (status !== 'CONNECTED') return;
-
-    sendEvent({
-      type: 'session.update',
-      session: {
-        turn_detection: {
-          type: 'server_vad',
-          threshold: 0.9,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 500,
-          create_response: true,
-        },
-      },
-    });
-
     sendEvent({
       type: 'conversation.item.create',
       item: {
@@ -95,17 +78,8 @@ export function useOpenAIAdapter({
   // ── Connection ────────────────────────────────────────────────────────
 
   const connect = useCallback(async () => {
-    await rawConnect({
-      getEphemeralKey,
-      agent: {
-        instructions: systemPrompt,
-        voice: agentVoice,
-        model,
-        tools,
-      },
-      audioElement,
-    });
-  }, [rawConnect, getEphemeralKey, systemPrompt, agentVoice, model, tools, audioElement]);
+    await rawConnect({ getEphemeralKey, agentVoice, tools, audioElement });
+  }, [rawConnect, getEphemeralKey, agentVoice, tools, audioElement]);
 
   const disconnect = useCallback(() => {
     const stream = audioElement?.srcObject as MediaStream | null;

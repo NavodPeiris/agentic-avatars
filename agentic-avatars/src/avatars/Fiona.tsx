@@ -10,24 +10,48 @@ import type { Lipsync } from 'wawa-lipsync';
 import { getLipsyncManager } from '../audio/lipsyncManager';
 
 // Map from wawa-lipsync viseme enums to Fiona's morph target names.
-// adapt the map if you swap in a different avatar with different morph target naming!
 const VISEME_MAP: Record<VISEMES, string> = {
-  [VISEMES.sil]: 'None',        // silence — triggers idle expression
-  [VISEMES.PP]: 'Explosive',    // B, M, P — lip burst
+  [VISEMES.sil]: 'None',        // silence
+  [VISEMES.PP]: 'Explosive',    // B, M, P — lip burst (closed→burst)
   [VISEMES.FF]: 'Dental_Lip',   // F, V — lower lip on upper teeth
-  [VISEMES.TH]: 'Tight',        // Th — tight with tongue forward
-  [VISEMES.DD]: 'Lip_Open',     // T, L, D, N — slight lip opening
-  [VISEMES.kk]: 'Open',         // K, G, H, NG — open throat/mouth
+  [VISEMES.TH]: 'Dental_Lip',   // Th — tongue between teeth, similar to FF
+  [VISEMES.DD]: 'None',          // T, L, D — slight open covered by Lip_Open overlay
+  [VISEMES.kk]: 'Open',         // K, G — back-of-throat open
   [VISEMES.CH]: 'Affricate',    // Ch, J — affricate shape
-  [VISEMES.SS]: 'Tight',        // S, Z — sibilant, teeth close
-  [VISEMES.nn]: 'Lip_Open',     // N — nasal, lips slightly parted
-  [VISEMES.RR]: 'Tight_O',      // R — slight rounded shape
-  [VISEMES.aa]: 'Open',         // Ah — wide open mouth
-  [VISEMES.E]: 'Wide',          // EE — wide smile-like
+  [VISEMES.SS]: 'Tight',        // S, Z — teeth close, sibilant
+  [VISEMES.nn]: 'None',          // N — nasal, slight open covered by Lip_Open overlay
+  [VISEMES.RR]: 'Tight_O',      // R — slight rounded/bunched
+  [VISEMES.aa]: 'Open',         // Ah — wide open
+  [VISEMES.E]: 'Wide',          // EE — stretched wide
   [VISEMES.I]: 'Wide',          // Ih — wide
   [VISEMES.O]: 'Tight_O',       // Oh — rounded O
-  [VISEMES.U]: 'Mouth_Pucker',  // OO, W — puckered lips
+  [VISEMES.U]: 'Mouth_Pucker',  // OO, W — puckered
 };
+
+// Per-viseme morph target weight — not all phonemes open the mouth equally.
+const VISEME_WEIGHT: Record<VISEMES, number> = {
+  [VISEMES.sil]: 0,
+  [VISEMES.PP]: 1.0,   // explosive — full closed-burst
+  [VISEMES.FF]: 0.85,  // dental
+  [VISEMES.TH]: 0.8,   // dental-ish
+  [VISEMES.DD]: 0.75,  // slight open
+  [VISEMES.kk]: 1.0,   // open
+  [VISEMES.CH]: 0.9,   // affricate
+  [VISEMES.SS]: 0.75,  // tight
+  [VISEMES.nn]: 0.65,  // nasal
+  [VISEMES.RR]: 0.85,  // rounded
+  [VISEMES.aa]: 1.0,   // wide open — full
+  [VISEMES.E]: 0.9,    // wide
+  [VISEMES.I]: 0.8,    // wide
+  [VISEMES.O]: 0.95,   // rounded O
+  [VISEMES.U]: 0.9,    // pucker
+};
+
+// All morph target names driven by speech (used to lerp inactive ones → 0).
+const SPEECH_MORPHS = [
+  'Explosive', 'Dental_Lip', 'Tight',
+  'Open', 'Affricate', 'Tight_O', 'Wide', 'Mouth_Pucker',
+];
 
 export function Fiona() {
   const modelPath = 'https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/Fiona/Fiona.glb';
@@ -39,49 +63,13 @@ export function Fiona() {
 
   const morphableMesh = nodes.CC_Base_Body_1 as THREE.Mesh;
 
-  // ── Morph target helpers ─────────────────────────────────────────────────
-
-  const resetAllMorphTargets = () => {
-    const blink = morphableMesh.morphTargetDictionary!['Eye_Blink'];
-    const inf = morphableMesh.morphTargetInfluences;
-    if (!inf) return;
-    for (let i = 0; i < inf.length; i++) {
-      if (i !== blink) inf[i] = 0;
-    }
-  };
+  // ── Morph target lerp helper ─────────────────────────────────────────────
 
   const lerpMorph = (name: string, value: number, speed = 0.4) => {
     const idx = morphableMesh.morphTargetDictionary![name];
     const inf = morphableMesh.morphTargetInfluences;
     if (idx === undefined || !inf) return;
     inf[idx] = THREE.MathUtils.lerp(inf[idx], value, speed);
-  };
-
-  const handleBlink = (value: number) => {
-    lerpMorph('Eye_Blink', value);
-  };
-
-  const applyIdleExpression = () => {
-    lerpMorph('Mouth_Smile_L', 0.4);
-    lerpMorph('Mouth_Smile_R', 0.4);
-    lerpMorph('Cheek_Raise_L', 0.3);
-    lerpMorph('Cheek_Raise_R', 0.3);
-  };
-
-  const applyTalkingExpression = () => {
-    lerpMorph('Lip_Open', 1, 0.6);  // lip opening is the main talking expression, so we lerp it faster for snappier response
-    lerpMorph('Brow_Raise_Inner_L', 0.6, 0.25);
-    lerpMorph('Brow_Raise_Inner_R', 0.6, 0.25);
-  };
-
-  const handleMorph = (name: string) => {
-    resetAllMorphTargets();
-    lerpMorph(name, 1);
-    if (name === 'None') {
-      applyIdleExpression();
-    } else {
-      applyTalkingExpression();
-    }
   };
 
   // ── Blink loop ────────────────────────────────────────────────────────────
@@ -106,10 +94,30 @@ export function Fiona() {
   // ── Per-frame: blink + lipsync ────────────────────────────────────────────
 
   useFrame(() => {
-    handleBlink(blink ? 1 : 0);
+    // Blink
+    lerpMorph('Eye_Blink', blink ? 1 : 0, 0.5);
+
+    // Resolve active viseme
     const lipsync = getLipsyncManager() as Lipsync | null;
-    if (!lipsync) return;
-    handleMorph(VISEME_MAP[lipsync.viseme]);
+    const targetName = lipsync ? VISEME_MAP[lipsync.viseme] : 'None';
+    const targetWeight = lipsync ? VISEME_WEIGHT[lipsync.viseme] : 0;
+    const isSpeaking = targetName !== 'None';
+
+    // Lerp each speech morph — active toward its weighted target, rest toward 0.
+    // Faster speeds mean less morph overlap and more distinct mouth shapes.
+    for (const morphName of SPEECH_MORPHS) {
+      const isActive = morphName === targetName;
+      lerpMorph(morphName, isActive ? targetWeight : 0, isActive ? 0.35 : 0.2);
+    }
+
+    // Idle/talking overlays
+    lerpMorph('Mouth_Smile_L', isSpeaking ? 0 : 0.35, 0.1);
+    lerpMorph('Mouth_Smile_R', isSpeaking ? 0 : 0.35, 0.1);
+    lerpMorph('Cheek_Raise_L', isSpeaking ? 0 : 0.25, 0.1);
+    lerpMorph('Cheek_Raise_R', isSpeaking ? 0 : 0.25, 0.1);
+    lerpMorph('Brow_Raise_Inner_L', isSpeaking ? 0.3 : 0, 0.08);
+    lerpMorph('Brow_Raise_Inner_R', isSpeaking ? 0.3 : 0, 0.08);
+    lerpMorph('Lip_Open', isSpeaking ? 0.6 : 0, 0.8);
   });
 
   // ── JSX ──────────────────────────────────────────────────────────────────

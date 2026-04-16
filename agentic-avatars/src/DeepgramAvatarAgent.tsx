@@ -52,6 +52,7 @@ export function DeepgramAvatarAgent({
   llm,
   voice,
   sttModel,
+  tools,
   backgroundImages,
   onSessionEnd,
   endSessionPhrase,
@@ -59,7 +60,7 @@ export function DeepgramAvatarAgent({
   avatarComponent,
   className,
 }: DeepgramAvatarAgentProps) {
-  const adapter = useDeepgramAdapter({ getApiKey, systemPrompt, llm, voice, sttModel });
+  const adapter = useDeepgramAdapter({ getApiKey, systemPrompt, llm, voice, sttModel, tools });
 
   return (
     <AvatarAgent

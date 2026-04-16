@@ -5,6 +5,9 @@ export type { AvatarAgentProps } from './AvatarAgent';
 // ── Adapter interface (for building custom adapters) ──────────────────────────
 export type { SessionAdapter } from './adapters/SessionAdapter';
 
+// ── Shared types ──────────────────────────────────────────────────────────────
+export type { OpenAIRealtimeTool, DeepgramTool } from './types';
+
 // ── Export library provided avatars ───────────────────────────────────────────────
 export { Fiona } from './avatars/Fiona';
 export { Jane } from './avatars/Jane';

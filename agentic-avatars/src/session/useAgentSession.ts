@@ -6,21 +6,14 @@
  */
 import { useCallback, useRef, useState } from 'react';
 import { audioFormatForCodec, applyCodecPreferences } from './codecUtils';
-import type { OpenAIRealtimeTool } from '../types';
-import type { SessionStatus } from '../types';
+import type { SessionStatus, OpenAIRealtimeTool } from '../types';
 
 const CALLS_URL = 'https://api.openai.com/v1/realtime/calls';
 
-export interface AgentConfig {
-  instructions: string;
-  voice: string;
-  model: string;
-  tools?: OpenAIRealtimeTool[];
-}
-
 export interface ConnectOptions {
   getEphemeralKey: () => Promise<string>;
-  agent: AgentConfig;
+  agentVoice?: string;
+  tools?: OpenAIRealtimeTool[];
   audioElement?: HTMLAudioElement;
 }
 
@@ -65,7 +58,7 @@ export function useAgentSession({
   }, [updateStatus]);
 
   const connect = useCallback(
-    async ({ getEphemeralKey, agent, audioElement }: ConnectOptions) => {
+    async ({ getEphemeralKey, agentVoice = 'sage', tools = [], audioElement }: ConnectOptions) => {
       if (status !== 'DISCONNECTED') return;
       updateStatus('CONNECTING');
 
@@ -118,21 +111,40 @@ export function useAgentSession({
         pcRef.current = pc;
         dcRef.current = dc;
 
-        // Wait for the data channel to open, then send initial session config
+        // Wait for data channel open → send full config → wait for server ack.
         await new Promise<void>((resolve, reject) => {
+          // Fallback: resolve after 5 s even if ack never arrives.
           const timeout = setTimeout(() => resolve(), 5000);
 
+          const onMessage = (event: MessageEvent) => {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const msg = JSON.parse(event.data as string) as Record<string, any>;
+              if (msg.type === 'session.updated') {
+                clearTimeout(timeout);
+                dc.removeEventListener('message', onMessage);
+                resolve();
+              }
+            } catch { /* ignore */ }
+          };
+
           dc.onopen = () => {
-            clearTimeout(timeout);
+            // Send full session config in one update so nothing is reset.
             dc.send(JSON.stringify({
               type: 'session.update',
               session: {
-                instructions: agent.instructions,
-                voice: agent.voice,
+                voice: agentVoice,
                 input_audio_format: audioFormat,
                 output_audio_format: audioFormat,
                 input_audio_transcription: { model: 'gpt-4o-mini-transcribe' },
-                tools: (agent.tools ?? []).map((t) => ({
+                turn_detection: {
+                  type: 'server_vad',
+                  threshold: 0.9,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 500,
+                  create_response: true,
+                },
+                tools: tools.map((t) => ({
                   type: 'function',
                   name: t.name,
                   description: t.description,
@@ -140,11 +152,12 @@ export function useAgentSession({
                 })),
               },
             }));
-            resolve();
+            // Listen for the server's session.updated acknowledgement.
+            dc.addEventListener('message', onMessage);
           };
 
           dc.onerror = (err) => { clearTimeout(timeout); reject(err); };
-          dc.onclose = () => clearTimeout(timeout);
+          dc.onclose = () => { clearTimeout(timeout); resolve(); };
         });
 
         // Ongoing message handler
@@ -163,26 +176,22 @@ export function useAgentSession({
               onTranscriptMessage?.('user', msg.transcript);
             }
 
-            // Handle tool calls
-            if (msg.type === 'response.function_call_arguments.done' && agent.tools) {
-              const tool = agent.tools.find((t) => t.name === msg.name);
-              if (tool?.handler) {
-                Promise.resolve(
-                  tool.handler(JSON.parse(msg.arguments ?? '{}')),
-                ).then((result) => {
-                  if (dc.readyState !== 'open') return;
-                  dc.send(JSON.stringify({
-                    type: 'conversation.item.create',
-                    item: {
-                      type: 'function_call_output',
-                      call_id: msg.call_id,
-                      output: JSON.stringify(result),
-                    },
-                  }));
-                  dc.send(JSON.stringify({ type: 'response.create' }));
-                }).catch(console.error);
+            if (msg.type === 'response.function_call_arguments.done') {
+              const tool = tools.find((t) => t.name === msg.name);
+              if (tool) {
+                Promise.resolve(tool.handler(JSON.parse(msg.arguments ?? '{}')))
+                  .then((result) => {
+                    if (dc.readyState !== 'open') return;
+                    dc.send(JSON.stringify({
+                      type: 'conversation.item.create',
+                      item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify(result) },
+                    }));
+                    dc.send(JSON.stringify({ type: 'response.create' }));
+                  })
+                  .catch(console.error);
               }
             }
+
           } catch { /* ignore parse errors */ }
         });
 

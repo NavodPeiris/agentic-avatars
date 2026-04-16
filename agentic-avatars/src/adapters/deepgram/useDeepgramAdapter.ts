@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DeepgramClient } from '@deepgram/sdk';
 import { getLipsyncManager, resetLipsyncManager } from '../../audio/lipsyncManager';
 import type { SessionAdapter } from '../SessionAdapter';
-import type { SessionStatus } from '../../types';
+import type { SessionStatus, DeepgramTool } from '../../types';
 
 export interface UseDeepgramAdapterOptions {
   /**
@@ -43,6 +43,12 @@ export interface UseDeepgramAdapterOptions {
    * Defaults to 'nova-3'.
    */
   sttModel?: string;
+
+  /**
+   * Client-side tools the agent can call. Each entry declares the schema
+   * (sent via settings) and a `handler` called when the agent invokes it.
+   */
+  tools?: DeepgramTool[];
 }
 
 // ── AudioWorklet for mic capture ──────────────────────────────────────────────
@@ -87,6 +93,7 @@ export function useDeepgramAdapter({
   llm = {},
   voice = 'aura-2-thalia-en',
   sttModel = 'nova-3',
+  tools = [],
 }: UseDeepgramAdapterOptions): SessionAdapter {
   const [status, setStatus] = useState<SessionStatus>('DISCONNECTED');
 
@@ -249,6 +256,14 @@ export function useDeepgramAdapter({
                     model: llm.model ?? 'gpt-4o-mini',
                   },
                   ...(systemPrompt && { prompt: systemPrompt }),
+                  ...(tools.length > 0 && {
+                    functions: tools.map((t) => ({
+                      name: t.name,
+                      description: t.description,
+                      parameters: t.parameters,
+                      // no endpoint → client_side execution
+                    })),
+                  }),
                 },
                 speak: {
                   provider: { type: 'deepgram', model: voice },
@@ -280,6 +295,24 @@ export function useDeepgramAdapter({
           case 'UserStartedSpeaking':
             if (playCtxRef.current) {
               nextPlayTimeRef.current = playCtxRef.current.currentTime;
+            }
+            break;
+
+          case 'FunctionCallRequest':
+            for (const fn of (message.functions ?? [])) {
+              if (!fn.client_side) break;
+              const tool = tools.find((t) => t.name === fn.name);
+              if (!tool) break;
+              Promise.resolve(tool.handler(JSON.parse(fn.arguments ?? '{}')))
+                .then((result) => {
+                  socket.sendFunctionCallResponse({
+                    type: 'FunctionCallResponse',
+                    id: fn.id,
+                    name: fn.name,
+                    content: JSON.stringify(result),
+                  });
+                })
+                .catch(console.error);
             }
             break;
 

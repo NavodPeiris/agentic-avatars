@@ -42,25 +42,40 @@ export interface OpenAIRealtimeTool {
   /** JSON Schema object for the tool's parameters. */
   parameters: Record<string, unknown>;
   /** Called when the model invokes the tool. Return value is sent back as the tool output. */
-  handler?: (args: Record<string, unknown>) => unknown | Promise<unknown>;
+  handler: (args: Record<string, unknown>) => unknown | Promise<unknown>;
 }
 
 export interface OpenAIAvatarAgentProps extends BaseAvatarAgentProps {
-  /** System prompt injected into the realtime agent on connect. */
-  systemPrompt: string;
-
   /**
-   * Tools to expose to the realtime agent.
-   * Each entry is a plain object with `name`, `description`, `parameters` (JSON Schema),
-   * and an optional `handler` function called when the model invokes the tool.
+   * Must return a valid OpenAI ephemeral key for the realtime session.
+   * Configure the model, system prompt (instructions), and tools inside the
+   * session creation request:
+   * ```ts
+   * getEphemeralKey={async () => {
+   *   const session = await openai.realtime.clientSecrets.create({
+   *     session: {
+   *       model: 'gpt-4o-mini-realtime-preview',
+   *       instructions: 'You are a helpful assistant.',
+   *     },
+   *   });
+   *   return session.value;
+   * }}
+   * ```
    */
-  tools?: OpenAIRealtimeTool[];
-
-  /** Must return a valid OpenAI ephemeral key for the realtime session. */
   getEphemeralKey: () => Promise<string>;
 
-  /** Voice for the realtime agent. Defaults to `"sage"`. */
+  /**
+   * OpenAI Realtime voice ID. Defaults to `"sage"`.
+   * Options: `alloy` | `ash` | `ballad` | `coral` | `echo` | `sage` | `shimmer` | `verse`.
+   */
   agentVoice?: string;
+
+  /**
+   * Tools to expose to the agent. Each entry declares the schema (sent to the model
+   * via `session.update`) and a `handler` function called when the model invokes it.
+   * The return value is sent back as the tool output.
+   */
+  tools?: OpenAIRealtimeTool[];
 }
 
 // ── Vapi ──────────────────────────────────────────────────────────────────────
@@ -105,6 +120,18 @@ export interface ElevenLabsAvatarAgentProps extends BaseAvatarAgentProps {
 
 // ── Deepgram ──────────────────────────────────────────────────────────────────
 
+/** A client-side function tool exposed to the Deepgram Voice Agent. */
+export interface DeepgramTool {
+  /** Name the model uses to call this tool. */
+  name: string;
+  /** Description of what the tool does. */
+  description: string;
+  /** JSON Schema object for the tool's parameters. */
+  parameters: Record<string, unknown>;
+  /** Called when the agent invokes the tool. Return value is serialised and sent back as the tool output. */
+  handler: (args: Record<string, unknown>) => unknown | Promise<unknown>;
+}
+
 export interface DeepgramAvatarAgentProps extends BaseAvatarAgentProps {
   /**
    * Returns a Deepgram API key.
@@ -129,6 +156,13 @@ export interface DeepgramAvatarAgentProps extends BaseAvatarAgentProps {
 
   /** STT model. Defaults to 'nova-3'. */
   sttModel?: string;
+
+  /**
+   * Client-side tools the agent can call. Each entry declares the schema
+   * (sent to the agent via settings) and a `handler` function called when
+   * the agent invokes it. The return value is sent back as the tool output.
+   */
+  tools?: DeepgramTool[];
 }
 
 // ── LiveKit ───────────────────────────────────────────────────────────────────

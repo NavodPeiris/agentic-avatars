@@ -61,9 +61,40 @@ Uses the OpenAI Realtime API over WebRTC. Requires a server-side endpoint to min
 
 ```tsx
 import { OpenAIAvatarAgent } from "agentic-avatars/openai";
+import { Jane } from "agentic-avatars";
+import type { OpenAIRealtimeTool } from "agentic-avatars";
+
+const tools: OpenAIRealtimeTool[] = [
+  {
+    name: "get_product_price",
+    description: "Returns the current price of a product.",
+    parameters: {
+      type: "object",
+      properties: {
+        product_name: { type: "string", description: "Name of the product" },
+      },
+      required: ["product_name"],
+    },
+    handler: ({ product_name }) => {
+      const prices: Record<string, string> = {
+        "apple iphone 15 pro max": "$1,199",
+        "samsung galaxy s23 ultra": "$1,099",
+        "sony wh-1000xm5": "$349",
+        "dell xps 13": "$999",
+        "amazon echo dot": "$49",
+      };
+      const price =
+        prices[(product_name as string).toLowerCase()] ?? "Price not available";
+      return { product_name, price };
+    },
+  },
+];
 
 <OpenAIAvatarAgent
-  systemPrompt="You are a friendly AI interviewer. Ask three questions, then say 'This is the end'."
+  backgroundImages={["/niceBG.jpg"]}
+  avatarComponent={Jane}
+  agentVoice="nova"
+  tools={tools}
   getEphemeralKey={async () => {
     const res = await fetch("/api/realtime-session");
     const { client_secret } = await res.json();
@@ -82,11 +113,31 @@ const openai = new OpenAI({
   apiKey: process.env.REACT_APP_OPENAI_API_KEY,
 });
 
+const sys_prompt = `
+# ROLE
+You are a product recommendation assistant for Amazon who answers user questions and recommends products based on their preferences.
+at initial greeting, say 'Hello! I am Jane, a product specialist at Amazon. I can help you find products — feel free to tell me what you are looking for!'
+DO NOT repeat it again.
+
+These are currently available products:
+1. Apple iPhone 15 Pro Max - iPhone 15 Pro Max delivers premium performance with a lightweight titanium design, stunning 6.7-inch Super Retina XDR display with ProMotion, and the powerful A17 Pro chip. Capture incredible detail with its advanced Pro camera system featuring a 48MP main sensor and 5x optical zoom.
+2. Samsung Galaxy S23 Ultra - A high-end Android phone with a stunning display, versatile cameras, and long battery life.
+3. Sony WH-1000XM5 Wireless Noise-Canceling Headphones - Premium headphones with industry-leading noise cancellation, exceptional sound quality, and comfortable design.
+4. Dell XPS 13 Laptop - A sleek and powerful ultrabook with a stunning InfinityEdge display, Intel Core i7 processor, and long battery life.
+5. Amazon Echo Dot (5th Gen) - A compact smart speaker with Alexa voice assistant, perfect for controlling smart home devices, playing music, and getting information.
+Always recommend products based on the user's preferences and needs. If the user asks for a specific product, provide information about it and suggest similar alternatives if available.
+When the user says goodbye or is done, say "this is the end" to close the session.
+
+# TOOLS
+if user asks for product prices, use the get_product_price tool to retrieve the current price of the product and include it in your response.
+`;
+
 export async function GET() {
   const session = await openai.realtime.clientSecrets.create({
     session: {
       type: "realtime",
       model: "gpt-realtime-mini-2025-10-06",
+      instructions: sys_prompt,
     },
   });
 
@@ -111,18 +162,74 @@ Uses the Deepgram Voice Agent API over WebSocket. Handles STT, LLM, and TTS in a
 
 ```tsx
 import { DeepgramAvatarAgent } from "agentic-avatars/deepgram";
+import type { DeepgramTool } from "agentic-avatars";
+import { Jane } from "agentic-avatars";
 
-<DeepgramAvatarAgent
-  getApiKey={async () => {
-    const res = await fetch("/api/deepgram-key");
-    const { key } = await res.json();
-    return key;
-  }}
-  systemPrompt="You are a helpful assistant."
-  llm={{ provider: "open_ai", model: "gpt-4o-mini" }}
-  voice="aura-2-thalia-en"
-  sttModel="nova-3"
-/>;
+const sys_prompt = `
+# ROLE
+You are a product recommendation assistant for Amazon who answers user questions and recommends products based on their preferences.
+At initial greeting, say 'Hello! I am Jane, a product specialist at Amazon. I can help you find products — feel free to tell me what you are looking for!'
+DO NOT repeat it again.
+
+These are currently available products:
+1. Apple iPhone 15 Pro Max - iPhone 15 Pro Max delivers premium performance with a lightweight titanium design, stunning 6.7-inch Super Retina XDR display with ProMotion, and the powerful A17 Pro chip.
+2. Samsung Galaxy S23 Ultra - A high-end Android phone with a stunning display, versatile cameras, and long battery life.
+3. Sony WH-1000XM5 Wireless Noise-Canceling Headphones - Premium headphones with industry-leading noise cancellation, exceptional sound quality, and comfortable design.
+4. Dell XPS 13 Laptop - A sleek and powerful ultrabook with a stunning InfinityEdge display, Intel Core i7 processor, and long battery life.
+5. Amazon Echo Dot (5th Gen) - A compact smart speaker with Alexa voice assistant, perfect for controlling smart home devices, playing music, and getting information.
+Always recommend products based on the user's preferences and needs.
+When the user says goodbye or is done, say "this is the end" to close the session.
+
+# TOOLS
+If the user asks for product prices, use the get_product_price tool to retrieve the current price and include it in your response.
+`;
+
+const tools: DeepgramTool[] = [
+  {
+    name: "get_product_price",
+    description: "Returns the current price of a product.",
+    parameters: {
+      type: "object",
+      properties: {
+        product_name: { type: "string", description: "Name of the product" },
+      },
+      required: ["product_name"],
+    },
+    handler: ({ product_name }) => {
+      const prices: Record<string, string> = {
+        "apple iphone 15 pro max": "$1,199",
+        "samsung galaxy s23 ultra": "$1,099",
+        "sony wh-1000xm5": "$349",
+        "dell xps 13": "$999",
+        "amazon echo dot": "$49",
+      };
+      const price =
+        prices[(product_name as string).toLowerCase()] ?? "Price not available";
+      return { product_name, price };
+    },
+  },
+];
+
+export default function DeepgramAvatarTest() {
+  return (
+    <div style={{ width: "100vw", height: "100vh" }}>
+      <DeepgramAvatarAgent
+        avatarComponent={Jane}
+        // YOU SHOULD NEVER EXPOSE YOUR DEEPGRAM API KEY IN THE BROWSER IN PRODUCTION.
+        // FOR PRODUCTION USE: proxy the key through your backend.
+        getApiKey={async () => process.env.REACT_APP_DEEPGRAM_API_KEY!}
+        systemPrompt={sys_prompt}
+        llm={{ provider: "open_ai", model: "gpt-4o-mini" }}
+        voice="aura-2-thalia-en"
+        sttModel="nova-3"
+        tools={tools}
+        backgroundImages={["/niceBG.jpg"]}
+        onSessionEnd={() => alert("Session ended")}
+        sessionTimeout={2 * 60 * 1000}
+      />
+    </div>
+  );
+}
 ```
 
 ### Props
@@ -143,6 +250,7 @@ Uses the ElevenLabs Conversational AI SDK. Configure your agent in the ElevenLab
 
 ```tsx
 import { ElevenLabsAvatarAgent } from "agentic-avatars/elevenlabs";
+import { Jane } from "agentic-avatars";
 
 // Public agent (no auth required)
 <ElevenLabsAvatarAgent
@@ -151,6 +259,8 @@ import { ElevenLabsAvatarAgent } from "agentic-avatars/elevenlabs";
 
 // Private agent (fetch a short-lived token server-side)
 <ElevenLabsAvatarAgent
+  backgroundImages={["/niceBG.jpg"]}
+  avatarComponent={Jane}
   agentId="your-agent-id"
   getConversationToken={async () => {
     const res = await fetch("/api/elevenlabs-token");
@@ -190,6 +300,7 @@ Uses the Vapi Web SDK. Configure your assistant in the Vapi dashboard or pass an
 
 ```tsx
 import { VapiAvatarAgent } from "agentic-avatars/vapi";
+import { Jane } from "agentic-avatars";
 
 // Using a pre-configured assistant ID
 <VapiAvatarAgent
@@ -199,6 +310,8 @@ import { VapiAvatarAgent } from "agentic-avatars/vapi";
 
 // Using an inline assistant config
 <VapiAvatarAgent
+  backgroundImages={["/niceBG.jpg"]}
+  avatarComponent={Jane}
   publicKey="your-vapi-public-key"
   assistant={{
     model: {
@@ -227,8 +340,11 @@ Uses LiveKit Agents over WebRTC. Your LiveKit agent must be running server-side 
 
 ```tsx
 import { LiveKitAvatarAgent } from "agentic-avatars/livekit";
+import { Jane } from "agentic-avatars";
 
 <LiveKitAvatarAgent
+  backgroundImages={["/niceBG.jpg"]}
+  avatarComponent={Jane}
   serverUrl="wss://my-project.livekit.cloud"
   getToken={async () => {
     const res = await fetch("/api/livekit-token");
@@ -243,6 +359,7 @@ import { LiveKitAvatarAgent } from "agentic-avatars/livekit";
 ```ts
 // app/api/livekit-token/route.ts
 import { AccessToken } from "livekit-server-sdk";
+import { Jane } from "agentic-avatars";
 
 export async function GET() {
   const token = new AccessToken(

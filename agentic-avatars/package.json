@@ -1,6 +1,6 @@
 {
   "name": "agentic-avatars",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Zero-Infrastructure Lip-Synced 3D avatar components for AI voice agents. Built with React Three Fiber and AI providers.",
   
   "author": "Navod Peiris",

@@ -10,24 +10,47 @@ import type { Lipsync } from 'wawa-lipsync';
 import { getLipsyncManager } from '../audio/lipsyncManager';
 
 // Map from wawa-lipsync viseme enums to Jane's morph target names.
-// adapt the map if you swap in a different avatar with different morph target naming!
 const VISEME_MAP: Record<VISEMES, string> = {
-  [VISEMES.sil]: 'None',        // silence — triggers idle expression
+  [VISEMES.sil]: 'None',          // silence
   [VISEMES.PP]: 'V_Explosive',    // B, M, P — lip burst
   [VISEMES.FF]: 'V_Dental_Lip',   // F, V — lower lip on upper teeth
-  [VISEMES.TH]: 'V_Tight',        // Th — tight with tongue forward
-  [VISEMES.DD]: 'V_Lip_Open',     // T, L, D, N — slight lip opening
-  [VISEMES.kk]: 'V_Open',         // K, G, H, NG — open throat/mouth
+  [VISEMES.TH]: 'V_Dental_Lip',   // Th — tongue between teeth, similar to FF
+  [VISEMES.DD]: 'None',           // T, L, D — slight open covered by V_Lip_Open overlay
+  [VISEMES.kk]: 'V_Open',         // K, G — back-of-throat open
   [VISEMES.CH]: 'V_Affricate',    // Ch, J — affricate shape
-  [VISEMES.SS]: 'V_Tight',        // S, Z — sibilant, teeth close
-  [VISEMES.nn]: 'V_Lip_Open',     // N — nasal, lips slightly parted
-  [VISEMES.RR]: 'V_Tight_O',      // R — slight rounded shape
-  [VISEMES.aa]: 'V_Open',         // Ah — wide open mouth
-  [VISEMES.E]: 'V_Wide',          // EE — wide smile-like
+  [VISEMES.SS]: 'V_Tight',        // S, Z — teeth close, sibilant
+  [VISEMES.nn]: 'None',           // N — nasal, slight open covered by V_Lip_Open overlay
+  [VISEMES.RR]: 'V_Tight_O',      // R — slight rounded/bunched
+  [VISEMES.aa]: 'V_Open',         // Ah — wide open
+  [VISEMES.E]: 'V_Wide',          // EE — stretched wide
   [VISEMES.I]: 'V_Wide',          // Ih — wide
   [VISEMES.O]: 'V_Tight_O',       // Oh — rounded O
-  [VISEMES.U]: 'Mouth_Pucker',  // OO, W — puckered lips
+  [VISEMES.U]: 'Mouth_Pucker',    // OO, W — puckered
 };
+
+// Per-viseme morph target weight.
+const VISEME_WEIGHT: Record<VISEMES, number> = {
+  [VISEMES.sil]: 0,
+  [VISEMES.PP]: 1.0,
+  [VISEMES.FF]: 0.85,
+  [VISEMES.TH]: 0.8,
+  [VISEMES.DD]: 0,
+  [VISEMES.kk]: 1.0,
+  [VISEMES.CH]: 0.9,
+  [VISEMES.SS]: 0.75,
+  [VISEMES.nn]: 0,
+  [VISEMES.RR]: 0.85,
+  [VISEMES.aa]: 1.0,
+  [VISEMES.E]: 0.9,
+  [VISEMES.I]: 0.8,
+  [VISEMES.O]: 0.95,
+  [VISEMES.U]: 0.9,
+};
+
+const SPEECH_MORPHS = [
+  'V_Explosive', 'V_Dental_Lip', 'V_Tight',
+  'V_Open', 'V_Affricate', 'V_Tight_O', 'V_Wide', 'Mouth_Pucker',
+];
 
 export function Jane() {
   const modelPath = 'https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/Jane/Jane.glb';
@@ -39,49 +62,13 @@ export function Jane() {
 
   const morphableMesh = nodes.CC_Base_Body_2 as THREE.Mesh;
 
-  // ── Morph target helpers ─────────────────────────────────────────────────
-
-  const resetAllMorphTargets = () => {
-    const blink = morphableMesh.morphTargetDictionary!['Eyes_Blink'];
-    const inf = morphableMesh.morphTargetInfluences;
-    if (!inf) return;
-    for (let i = 0; i < inf.length; i++) {
-      if (i !== blink) inf[i] = 0;
-    }
-  };
+  // ── Morph target lerp helper ─────────────────────────────────────────────
 
   const lerpMorph = (name: string, value: number, speed = 0.4) => {
     const idx = morphableMesh.morphTargetDictionary![name];
     const inf = morphableMesh.morphTargetInfluences;
     if (idx === undefined || !inf) return;
     inf[idx] = THREE.MathUtils.lerp(inf[idx], value, speed);
-  };
-
-  const handleBlink = (value: number) => {
-    lerpMorph('Eyes_Blink', value);
-  };
-
-  const applyIdleExpression = () => {
-    lerpMorph('Mouth_Smile_L', 0.4);
-    lerpMorph('Mouth_Smile_R', 0.4);
-    lerpMorph('Cheek_Raise_L', 0.3);
-    lerpMorph('Cheek_Raise_R', 0.3);
-  };
-
-  const applyTalkingExpression = () => {
-    lerpMorph('V_Lip_Open', 1, 0.6);  // lip opening is the main talking expression, so we lerp it faster for snappier response
-    lerpMorph('Brow_Raise_Inner_L', 0.6, 0.25);
-    lerpMorph('Brow_Raise_Inner_R', 0.6, 0.25);
-  };
-
-  const handleMorph = (name: string) => {
-    resetAllMorphTargets();
-    lerpMorph(name, 1);
-    if (name === 'None') {
-      applyIdleExpression();
-    } else {
-      applyTalkingExpression();
-    }
   };
 
   // ── Blink loop ────────────────────────────────────────────────────────────
@@ -106,10 +93,28 @@ export function Jane() {
   // ── Per-frame: blink + lipsync ────────────────────────────────────────────
 
   useFrame(() => {
-    handleBlink(blink ? 1 : 0);
+    lerpMorph('Eyes_Blink', blink ? 1 : 0, 0.5);
+
+    // Resolve active viseme
     const lipsync = getLipsyncManager() as Lipsync | null;
-    if (!lipsync) return;
-    handleMorph(VISEME_MAP[lipsync.viseme]);
+    const targetName = lipsync ? VISEME_MAP[lipsync.viseme] : 'None';
+    const targetWeight = lipsync ? VISEME_WEIGHT[lipsync.viseme] : 0;
+    const isSpeaking = targetName !== 'None';
+
+    // Lerp each speech morph — active toward its weighted target, rest toward 0.
+    for (const morphName of SPEECH_MORPHS) {
+      const isActive = morphName === targetName;
+      lerpMorph(morphName, isActive ? targetWeight : 0, isActive ? 0.35 : 0.2);
+    }
+
+    // Idle/talking overlays
+    lerpMorph('Mouth_Smile_L', isSpeaking ? 0 : 0.35, 0.1);
+    lerpMorph('Mouth_Smile_R', isSpeaking ? 0 : 0.35, 0.1);
+    lerpMorph('Cheek_Raise_L', isSpeaking ? 0 : 0.25, 0.1);
+    lerpMorph('Cheek_Raise_R', isSpeaking ? 0 : 0.25, 0.1);
+    lerpMorph('Brow_Raise_Inner_L', isSpeaking ? 0.3 : 0, 0.08);
+    lerpMorph('Brow_Raise_Inner_R', isSpeaking ? 0.3 : 0, 0.08);
+    lerpMorph('V_Lip_Open', isSpeaking ? 0.6 : 0, 0.8);
   });
 
   // ── JSX ──────────────────────────────────────────────────────────────────

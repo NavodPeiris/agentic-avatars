@@ -5,12 +5,9 @@ import type { OpenAIAvatarAgentProps } from './types';
 /**
  * Lip-synced 3D avatar driven by the OpenAI Realtime API over WebRTC.
  *
- * @param systemPrompt - Instructions injected into the realtime agent on every
- *   new connection. Computed dynamically if needed — the full string is sent
- *   fresh each time `connect()` is called.
- *
- * @param getEphemeralKey - Async function that returns a short-lived OpenAI
- *   ephemeral key. **Never call the OpenAI API directly from the browser** —
+ * @param getEphemeralKey - Async function that returns a short-lived OpenAI ephemeral key.
+ *   Configure the model, voice, and system prompt (instructions) inside the session
+ *   creation request. **Never call the OpenAI API directly from the browser** —
  *   proxy through your backend:
  *   ```ts
  *   getEphemeralKey={async () => {
@@ -20,41 +17,23 @@ import type { OpenAIAvatarAgentProps } from './types';
  *   }}
  *   ```
  *
- * @param tools - Optional tools the agent can call.
- *  Each tool is a plain object with `name`, `description`, `parameters` (JSON Schema),
- *  ```ts
- *  {
- *    name: string;
- *    description: string;
- *    parameters: Record<string, unknown>;
- *    handler?: (args: Record<string, unknown>) => unknown | Promise<unknown>;
- *  }
- *  ```
  *
- * @param agentVoice - OpenAI Realtime voice ID. Defaults to `"sage"`.
- *   Options: `alloy` | `ash` | `ballad` | `coral` | `echo` | `sage` | `shimmer` | `verse`.
+ * @param avatarComponent - React component to render as the avatar. Defaults to `Jane`.
  *
- * @param avatarComponent - React component to render as the avatar. Defaults to
- *   the built-in `Jane`. Pass any `React.ComponentType` for a custom avatar.
+ * @param backgroundImages - Array of image URLs for the scene background.
  *
- * @param backgroundImages - Array of image URLs for the scene background. One
- *   is chosen at random each mount. Transparent when omitted.
+ * @param onSessionEnd - Called when the session ends.
  *
- * @param onSessionEnd - Called when the session ends — end phrase detected,
- *   timeout elapsed, or the user clicked End.
- *
- * @param endSessionPhrase - Case-insensitive substring the component watches
- *   for in the agent transcript to end the session. Defaults to `"this is the end"`.
+ * @param endSessionPhrase - Phrase watched in the transcript to end the session.
  *
  * @param sessionTimeout - Hard timeout in milliseconds. Defaults to `600000` (10 min).
  *
  * @param className - Extra CSS class names on the outermost container `div`.
  */
 export function OpenAIAvatarAgent({
-  systemPrompt,
-  tools,
-  agentVoice,
   getEphemeralKey,
+  agentVoice,
+  tools,
   backgroundImages,
   onSessionEnd,
   endSessionPhrase,
@@ -62,7 +41,7 @@ export function OpenAIAvatarAgent({
   avatarComponent,
   className,
 }: OpenAIAvatarAgentProps) {
-  const adapter = useOpenAIAdapter({ systemPrompt, tools, agentVoice, getEphemeralKey });
+  const adapter = useOpenAIAdapter({ getEphemeralKey, agentVoice, tools });
 
   return (
     <AvatarAgent
