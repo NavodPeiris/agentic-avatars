@@ -12,13 +12,25 @@ Supported providers: **OpenAI Realtime API**, **Deepgram Voice Agents**, **Eleve
 
 ## Requirements
 
-| Peer dependency      | Version |
-| -------------------- | ------- |
-| `@react-three/drei`  | ≥ 10    |
-| `@react-three/fiber` | ≥ 9     |
-| `react`              | ≥ 18    |
-| `react-dom`          | ≥ 18    |
-| `three`              | ≥ 0.160 |
+| Peer dependency      | Version  |
+| -------------------- | -------- |
+| `@react-three/drei`  | ≥ 10     |
+| `@react-three/fiber` | ≥ 9      |
+| `react`              | ≥ 18     |
+| `react-dom`          | ≥ 18     |
+| `three`              | ≥ 0.160  |
+| `@deepgram/sdk`      | ≥ 3.13.0 |
+| `@elevenlabs/react`  | ≥ 1.0.2  |
+| `@openai/agents`     | ≥ 0.0.11 |
+| `@vapi-ai/web`       | ≥ 2.5.2  |
+| `livekit-client`     | 2.16.1   |
+
+Optional depending on your provider usecase:  
+`@deepgram/sdk`  
+`@elevenlabs/react`  
+`@openai/agents`  
+`@vapi-ai/web`  
+`livekit-client`
 
 ---
 

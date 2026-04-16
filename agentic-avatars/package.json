@@ -16,14 +16,21 @@
     "@react-three/fiber": ">=9",
     "react": ">=18",
     "react-dom": ">=18",
-    "three": ">=0.160"
-  },
-  "dependencies": {
+    "three": ">=0.160",
     "@deepgram/sdk": "^3.13.0",
     "@elevenlabs/react": "^1.0.2",
     "@openai/agents": "^0.0.11",
     "@vapi-ai/web": "^2.5.2",
-    "livekit-client": "2.16.1",
+    "livekit-client": "2.16.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepgram/sdk": { "optional": true },
+    "@elevenlabs/react": { "optional": true },
+    "@openai/agents": { "optional": true },
+    "@vapi-ai/web": { "optional": true },
+    "livekit-client": { "optional": true }
+  },
+  "dependencies": {
     "three-stdlib": "^2",
     "uuid": "^9",
     "wawa-lipsync": "*"
