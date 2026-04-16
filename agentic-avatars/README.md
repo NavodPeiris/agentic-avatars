@@ -400,7 +400,7 @@ first you should make sure your 3D model has face morphs with morph targets. The
 
 ---
 
-## Sponsoring
+## Sponsoring ❤️
 
 **agentic-avatars is free, open-source, and maintained in personal time.**
 
