@@ -8,7 +8,7 @@ import DeepgramAvatarTest from './examples/DeepgramAvatarTest';
 function App() {
   return (
     <div className='flex'>
-      <DeepgramAvatarTest />
+      <LiveKitAvatarTest />
     </div>
   );
 }

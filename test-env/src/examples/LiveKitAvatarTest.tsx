@@ -1,4 +1,4 @@
-import { LiveKitAvatarAgent } from "agentic-avatars";
+import { LiveKitAvatarAgent, Jane } from "agentic-avatars";
 
 // ── Minimal LiveKit access token builder using the Web Crypto API ─────────────
 // WARNING: exposes your API secret in the browser bundle. For testing only.
@@ -63,6 +63,7 @@ export default function LiveKitAvatarTest() {
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
       <LiveKitAvatarAgent
+        avatarComponent={Jane}
         serverUrl={process.env.REACT_APP_LIVEKIT_URL!}
         getToken={() =>
           buildLiveKitToken(

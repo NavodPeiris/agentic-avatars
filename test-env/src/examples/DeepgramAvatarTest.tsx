@@ -1,9 +1,10 @@
-import { DeepgramAvatarAgent } from "agentic-avatars";
+import { DeepgramAvatarAgent, Jane } from "agentic-avatars";
 
 export default function DeepgramAvatarTest() {
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
       <DeepgramAvatarAgent
+        avatarComponent={Jane}
         // YOU SHOULD NEVER EXPOSE YOUR DEEPGRAM API KEY IN THE BROWSER IN PRODUCTION.
         // FOR PRODUCTION USE: proxy the key through your backend.
         getApiKey={async () => process.env.REACT_APP_DEEPGRAM_API_KEY!}

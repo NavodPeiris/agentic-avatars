@@ -1,9 +1,10 @@
-import { ElevenLabsAvatarAgent } from "agentic-avatars";
+import { ElevenLabsAvatarAgent, Jane } from "agentic-avatars";
 
 export default function ElevenLabsAvatarTest() {
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
       <ElevenLabsAvatarAgent
+        avatarComponent={Jane}
         agentId="agent_2301knhmg0caevmaa33j53q4zbds"
         getConversationToken={async () => {
           // YOU SHOULD NEVER CALL THE ELEVENLABS API DIRECTLY FROM THE BROWSER IN PRODUCTION. INSTEAD PROXY THIS REQUEST THROUGH YOUR BACKEND SERVER TO KEEP YOUR API KEY SAFE.

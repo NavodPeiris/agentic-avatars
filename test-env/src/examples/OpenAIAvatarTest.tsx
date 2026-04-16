@@ -1,4 +1,5 @@
 import { OpenAIAvatarAgent } from "agentic-avatars";
+import { Jane } from "agentic-avatars";
 
 export default function OpenAIAvatarTest() {
   return (
@@ -6,6 +7,7 @@ export default function OpenAIAvatarTest() {
       <OpenAIAvatarAgent
         systemPrompt="You are a helpful assistant who answer user questions"
         backgroundImages={["/niceBG.jpg"]}
+        avatarComponent={Jane}
         getEphemeralKey={async () => {
           // YOU SHOULD NEVER CALL THE OPENAI API DIRECTLY FROM THE BROWSER IN PRODUCTION. INSTEAD PROXY THIS REQUEST THROUGH YOUR BACKEND SERVER TO KEEP YOUR API KEY SAFE.
           const res = await fetch(
