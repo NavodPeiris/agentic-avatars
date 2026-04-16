@@ -6,3 +6,4 @@ models
 agentic-avatars
 test-env
 .claude
+prod-env
