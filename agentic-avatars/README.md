@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="banner.png" alt="Agentic Avatars" width="800" />
+<img src="top_banner.png" alt="Agentic Avatars" width="800" />
 
 # agentic-avatars
 
@@ -250,7 +250,7 @@ All provider components accept these additional props:
 
 | Prop               | Type            | Default             | Description                                                                                        |
 | ------------------ | --------------- | ------------------- | -------------------------------------------------------------------------------------------------- |
-| `avatarComponent`  | `ComponentType` | `Camila`            | Avatar to render. Pass a library-provided avatar or any custom `React.ComponentType`.              |
+| `avatarComponent`  | `ComponentType` | `Jane`              | Avatar to render. Pass a library-provided avatar or any custom `React.ComponentType`.              |
 | `backgroundImages` | `string[]`      | `[]`                | Image URLs for the scene background. One is chosen at random each mount. Transparent when omitted. |
 | `onSessionEnd`     | `() => void`    | —                   | Called when the session ends (end phrase detected, timeout, or user clicked End).                  |
 | `endSessionPhrase` | `string`        | `"this is the end"` | Case-insensitive substring the component watches for in the agent's transcript to end the session. |
@@ -264,15 +264,15 @@ All provider components accept these additional props:
 The library ships a built-in avatar that is used by default. You can also pass any React component that renders a 3D scene element (intended for use inside a `@react-three/fiber` `Canvas`).
 
 ```tsx
-import { DeepgramAvatarAgent, Camila } from "agentic-avatars";
+import { DeepgramAvatarAgent, Jane } from "agentic-avatars";
 
-// Default — Camila is used automatically when avatarComponent is omitted
+// Default — Jane is used automatically when avatarComponent is omitted
 <DeepgramAvatarAgent getApiKey={...} />
 
 // Explicit
 <DeepgramAvatarAgent
   getApiKey={...}
-  avatarComponent={Camila}
+  avatarComponent={Jane}
 />
 
 // Custom avatar component
@@ -289,9 +289,9 @@ function MyAvatar() {
 
 ### Available avatars
 
-| Export   | Description                                                                                    |
-| -------- | ---------------------------------------------------------------------------------------------- |
-| `Camila` | Female avatar with a Reallusion CC character rig. Loads the model from jsDelivr automatically. |
+| Export | Description                                                                 |
+| ------ | --------------------------------------------------------------------------- |
+| `Jane` | Female avatar with a face rig. Loads the model from jsDelivr automatically. |
 
 ---
 
@@ -361,7 +361,7 @@ src/
 ├── VapiAvatarAgent.tsx
 ├── LiveKitAvatarAgent.tsx
 ├── avatars/
-│   └── Camila.tsx              ← built-in Camila avatar
+│   └── ...              ← contains avatar components
 ├── adapters/
 │   ├── SessionAdapter.ts       ← adapter interface
 │   ├── openai/
@@ -377,10 +377,6 @@ src/
     ├── useLipsync.ts           ← wires audio stream into lipsync analyser
     └── useAudio.ts             ← mic monitoring
 ```
-
-## Available Avatars
-
-- Camila
 
 all avatars have a component and 3D models were delivered though jsDelivr via this Repo's `models` branch.
 
@@ -400,7 +396,7 @@ first you should make sure your 3D model has face morphs with morph targets. The
 ## Contribution Guide
 
 - To contribute to package source code raise PRs to `main` branch
-- To contribute to 3D models: raise the PR to `models` branch adding a separate folder with the avatar name and GLB file in it. Then raise a PR to `main` to add the avatar component — follow the format in `src/avatars/Camila.tsx`.
+- To contribute to 3D models: raise the PR to `models` branch adding a separate folder with the avatar name and GLB file in it. Then raise a PR to `main` to add the avatar component — follow the format in `src/avatars/Jane.tsx`.
 
 ---
 

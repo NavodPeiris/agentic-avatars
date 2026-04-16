@@ -61,7 +61,7 @@ function ElevenLabsAvatarAgentInner({
  *   ```
  *
  * @param avatarComponent - React component to render as the avatar. Defaults to
- *   the built-in `Camila`. Pass any `React.ComponentType` for a custom avatar.
+ *   the built-in `Jane`. Pass any `React.ComponentType` for a custom avatar.
  *
  * @param backgroundImages - Array of image URLs for the scene background. One
  *   is chosen at random each mount. Transparent when omitted.

@@ -37,4 +37,6 @@ export type { UseLiveKitAdapterOptions } from './adapters/livekit/useLiveKitAdap
 export type { UseDeepgramAdapterOptions } from './adapters/deepgram/useDeepgramAdapter';
 
 // ── Export library provided avatars ───────────────────────────────────────────────
-export { Camila } from './avatars/Camila';
+export { Fiona } from './avatars/Fiona';
+export { Jane } from './avatars/Jane';
+export { Sam } from './avatars/Sam';

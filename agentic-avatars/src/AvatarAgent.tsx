@@ -12,7 +12,7 @@ import { isMobile } from './utils/isMobile';
 import { cn } from './utils/cn';
 import type { SessionAdapter } from './adapters/SessionAdapter';
 
-import { Camila } from './avatars/Camila';
+import { Jane } from './avatars/Jane';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_END_PHRASE = 'this is the end';
@@ -198,7 +198,7 @@ export function AvatarAgent({
           dpr={[1, 2]}
         >
           <Suspense fallback={<Loader />}>
-            <AvatarScene backgroundImages={backgroundImages} AvatarComponent={avatarComponent ?? Camila} />
+            <AvatarScene backgroundImages={backgroundImages} AvatarComponent={avatarComponent ?? Jane} />
           </Suspense>
         </Canvas>
       </div>

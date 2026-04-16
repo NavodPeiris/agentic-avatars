@@ -23,13 +23,8 @@ interface BaseAvatarAgentProps {
   sessionTimeout?: number;
 
   /**
-   * Avatar to render. Either:
-   * - A jsDelivr (or any CDN) URL to a compiled ES-module avatar component that
-   *   has a React component as its default export, e.g.
-   *   `"https://cdn.jsdelivr.net/gh/navodPeiris/agentic-avatars@models/camila/Avatar.tsx"`
-   * - A React component type (`React.ComponentType`) for fully custom avatars.
-   *
-   * Defaults to the built-in Camila avatar.
+   * React component to render as the avatar. Defaults to
+   *  the built-in `Jane`. Pass any `React.ComponentType` for a custom avatar.
    */
   avatarComponent?: React.ComponentType;
 
