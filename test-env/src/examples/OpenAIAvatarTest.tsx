@@ -1,6 +1,5 @@
 import { OpenAIAvatarAgent } from "agentic-avatars/openai";
 import type { OpenAIRealtimeTool } from "agentic-avatars";
-import { Jane } from "agentic-avatars";
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -57,7 +56,6 @@ export default function OpenAIAvatarTest() {
     <div style={{ width: "100vw", height: "100vh" }}>
       <OpenAIAvatarAgent
         backgroundImages={["/niceBG.jpg"]}
-        avatarComponent={Jane}
         agentVoice="nova"
         tools={tools}
         getEphemeralKey={async () => {
