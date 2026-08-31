@@ -6,9 +6,10 @@ export type { AvatarAgentProps } from './AvatarAgent';
 export type { SessionAdapter } from './adapters/SessionAdapter';
 
 // ── Shared types ──────────────────────────────────────────────────────────────
-export type { OpenAIRealtimeTool, DeepgramTool } from './types';
+export type { OpenAIRealtimeTool, DeepgramTool, ChatState } from './types';
 
-// ── Export library provided avatars ───────────────────────────────────────────────
-export { Fiona } from './avatars/Fiona';
-export { Jane } from './avatars/Jane';
-export { Sam } from './avatars/Sam';
+// ── Avatar controller contract (for advanced/custom expression pipelines) ─────
+export type { IAvatarController } from './avatar/GaussianAvatarController';
+
+// ── ARKit blendshape constants ─────────────────────────────────────────────────
+export { ARKIT_BLENDSHAPE_NAMES, createNeutralWeights } from './constants/arkit';

@@ -1,10 +1,18 @@
-import type React from 'react';
-
 export type SessionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED';
+
+/** Drives the avatar's body animation. Facial blendshapes are driven separately, in real time, by the wav2arkit lipsync engine. */
+export type ChatState = 'Idle' | 'Responding';
 
 // ── Shared base props (common across all platform wrappers) ───────────────────
 
 interface BaseAvatarAgentProps {
+  /**
+   * URL or path to a hosted Gaussian-splat avatar asset bundle, compatible
+   * with `@myned-ai/gsplat-flame-avatar-renderer`. Defaults to the
+   * library's built-in "Nyx" avatar. Pass your own to use a custom one.
+   */
+  assetsPath?: string;
+
   /** Array of background image URLs. One is chosen at random each mount. */
   backgroundImages?: string[];
 
@@ -20,12 +28,6 @@ interface BaseAvatarAgentProps {
 
   /** Session hard-timeout in milliseconds. Defaults to 10 minutes. */
   sessionTimeout?: number;
-
-  /**
-   * React component to render as the avatar. Defaults to
-   *  the built-in `Jane`. Pass any `React.ComponentType` for a custom avatar.
-   */
-  avatarComponent?: React.ComponentType;
 
   /** Extra class names applied to the outer container div. */
   className?: string;

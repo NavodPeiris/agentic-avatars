@@ -1,18 +1,15 @@
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ComponentType } from 'react';
-import * as THREE from 'three';
-import { Canvas } from '@react-three/fiber';
-import { AvatarScene } from './scene/AvatarScene';
-import { Loader } from './ui/Loader';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAvatarController, AvatarContainer } from './avatar/AvatarContainer';
+import { DEFAULT_ASSETS_PATH } from './avatar/defaultAvatar';
 import { Toolbar } from './ui/Toolbar';
-import { useLipsync } from './audio/useLipsync';
+import { useAvatarLipsync } from './audio/useAvatarLipsync';
+import { usePushAudioLipsync } from './audio/usePushAudioLipsync';
+import { useVolumeFallbackLipsync } from './audio/useVolumeFallbackLipsync';
 import { useAudio } from './audio/useAudio';
-import { getAgentAudioLevel } from './audio/lipsyncManager';
+import { getAgentAudioLevel } from './audio/wav2arkit/agentLevelMeter';
 import { isMobile } from './utils/isMobile';
 import { cn } from './utils/cn';
 import type { SessionAdapter } from './adapters/SessionAdapter';
-
-import { Jane } from './avatars/Jane';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_END_PHRASE = 'this is the end';
@@ -20,6 +17,13 @@ const DEFAULT_END_PHRASE = 'this is the end';
 export interface AvatarAgentProps {
   /** Platform adapter created by one of the useXxxAdapter hooks. */
   adapter: SessionAdapter;
+
+  /**
+   * URL or path to a hosted Gaussian-splat avatar asset bundle, compatible
+   * with `@myned-ai/gsplat-flame-avatar-renderer`. Defaults to the
+   * library's built-in "Nyx" avatar.
+   */
+  assetsPath?: string;
 
   /** Array of background image URLs. One is chosen at random each mount. */
   backgroundImages?: string[];
@@ -37,14 +41,6 @@ export interface AvatarAgentProps {
   /** Session hard-timeout in milliseconds. Defaults to 10 minutes. */
   sessionTimeout?: number;
 
-  /**
-   * Avatar to render.
-   * - A library exported Avatar Component
-   * - A `React.ComponentType` for fully custom avatars.
-   *
-   */
-  avatarComponent?: ComponentType;
-
   /** Extra class names applied to the outer container div. */
   className?: string;
 }
@@ -56,24 +52,29 @@ export interface AvatarAgentProps {
  */
 export function AvatarAgent({
   adapter,
+  assetsPath,
   backgroundImages = [],
   onSessionEnd,
   endSessionPhrase = DEFAULT_END_PHRASE,
   sessionTimeout = DEFAULT_TIMEOUT_MS,
-  avatarComponent,
   className,
 }: AvatarAgentProps) {
   const mobile = isMobile();
   const [isMuted, setIsMuted] = useState(false);
 
   // Destructure stable references so effects don't depend on the adapter object
-  const { status, connect, disconnect, mute, remoteStream, subscribeToTranscript } = adapter;
+  const { status, connect, disconnect, mute, remoteStream, getRemoteAudioLevel, subscribeToRemoteAudio, subscribeToTranscript } =
+    adapter;
 
   // Stable refs for callbacks used inside long-lived effects
   const onSessionEndRef = useRef(onSessionEnd);
   onSessionEndRef.current = onSessionEnd;
   const endPhraseRef = useRef(endSessionPhrase);
   endPhraseRef.current = endSessionPhrase;
+
+  // ── Avatar rendering ─────────────────────────────────────────────────
+
+  const { containerRef, controllerRef } = useAvatarController(assetsPath ?? DEFAULT_ASSETS_PATH);
 
   // ── Audio / lipsync ───────────────────────────────────────────────────
 
@@ -89,10 +90,39 @@ export function AvatarAgent({
     }
   }, [status, startMicMonitoring, stopMicMonitoring]);
 
-  useLipsync({
+  const onStartRecording = useCallback(
+    (stream: MediaStream) => {
+      startRecording(stream);
+      controllerRef.current?.setChatState('Responding');
+    },
+    [startRecording, controllerRef],
+  );
+
+  const onStopRecording = useCallback(() => {
+    stopRecording();
+    controllerRef.current?.setChatState('Idle');
+  }, [stopRecording, controllerRef]);
+
+  useAvatarLipsync({
     remoteStream,
-    onStartRecording: startRecording,
-    onStopRecording: stopRecording,
+    controllerRef,
+    onStartRecording,
+    onStopRecording,
+  });
+
+  // Adapters that decode raw PCM themselves (e.g. Deepgram) push samples
+  // directly into full wav2arkit neural lipsync, bypassing the MediaStream tap.
+  usePushAudioLipsync({
+    subscribeToRemoteAudio,
+    controllerRef,
+  });
+
+  // Adapters with neither a MediaStream nor raw audio access (e.g.
+  // ElevenLabs) fall back to coarse, volume-driven mouth movement.
+  useVolumeFallbackLipsync({
+    getRemoteAudioLevel,
+    active: status === 'CONNECTED' && !remoteStream && !subscribeToRemoteAudio,
+    controllerRef,
   });
 
   // ── End phrase detection via transcript ───────────────────────────────
@@ -108,6 +138,13 @@ export function AvatarAgent({
     });
   // subscribeToTranscript and disconnect are stable useCallbacks
   }, [subscribeToTranscript, disconnect]);
+
+  // Agent-level meter: real streams feed the shared AnalyserNode-based meter
+  // via useAvatarLipsync; stream-less adapters (ElevenLabs) read their own
+  // volume scalar directly.
+  const getAgentLevel = useCallback(() => {
+    return remoteStream ? getAgentAudioLevel() : (getRemoteAudioLevel?.() ?? 0);
+  }, [remoteStream, getRemoteAudioLevel]);
 
   // ── Connection toggle ─────────────────────────────────────────────────
 
@@ -173,34 +210,9 @@ export function AvatarAgent({
           onToggleMute={onToggleMute}
           isMuted={isMuted}
           getMicLevel={getMicLevel}
-          getAgentLevel={getAgentAudioLevel}
+          getAgentLevel={getAgentLevel}
         />
-        <Canvas
-          shadows={mobile ? 'basic' : 'soft'}
-          camera={{ fov: 30 }}
-          style={{
-            pointerEvents: 'none',
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-          }}
-          gl={{
-            outputColorSpace: THREE.SRGBColorSpace,
-            toneMapping: THREE.ACESFilmicToneMapping,
-            toneMappingExposure: mobile ? 1.2 : 1,
-            antialias: !mobile,
-            alpha: true,
-            powerPreference: 'high-performance',
-            precision: 'highp',
-            logarithmicDepthBuffer: true,
-          }}
-          dpr={[1, 2]}
-        >
-          <Suspense fallback={<Loader />}>
-            <AvatarScene backgroundImages={backgroundImages} AvatarComponent={avatarComponent ?? Jane} />
-          </Suspense>
-        </Canvas>
+        <AvatarContainer containerRef={containerRef} backgroundImages={backgroundImages} />
       </div>
     </div>
   );

@@ -6,9 +6,8 @@
  *
  * Supports @deepgram/sdk v3 and v5.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { DeepgramClient } from '@deepgram/sdk';
-import { getLipsyncManager, resetLipsyncManager } from '../../audio/lipsyncManager';
 import type { SessionAdapter } from '../SessionAdapter';
 import type { SessionStatus, DeepgramTool } from '../../types';
 
@@ -102,56 +101,21 @@ export function useDeepgramAdapter({
   const micCtxRef = useRef<AudioContext | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const playCtxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
   const nextPlayTimeRef = useRef(0);
   const isMutedRef = useRef(false);
   const micNodeRef = useRef<AudioWorkletNode | null>(null);
   const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const levelRef = useRef(0);
 
   const subscribersRef = useRef(
     new Set<(role: 'assistant' | 'user', text: string) => void>(),
   );
-
-  // ── Lipsync rAF loop ──────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (status !== 'CONNECTED') return;
-
-    const ctx = playCtxRef.current;
-    if (!ctx) return;
-
-    const FFT_SIZE = 2048;
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = FFT_SIZE;
-    analyser.connect(ctx.destination);
-    analyserRef.current = analyser;
-
-    const lipsync = getLipsyncManager();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (lipsync as any).analyser = analyser;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (lipsync as any).audioContext = ctx;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (lipsync as any).dataArray = new Uint8Array(analyser.frequencyBinCount);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (lipsync as any).sampleRate = OUTPUT_SAMPLE_RATE;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (lipsync as any).binWidth = OUTPUT_SAMPLE_RATE / FFT_SIZE;
-
-    let animFrameId: number;
-    const tick = () => {
-      lipsync.processAudio();
-      animFrameId = requestAnimationFrame(tick);
-    };
-    tick();
-
-    return () => {
-      cancelAnimationFrame(animFrameId);
-      analyser.disconnect();
-      analyserRef.current = null;
-      resetLipsyncManager();
-    };
-  }, [status]);
+  // Deepgram decodes raw PCM itself (no MediaStream) — subscribers here
+  // receive each decoded chunk directly, feeding full wav2arkit neural
+  // lipsync instead of tapping an AnalyserNode.
+  const audioSubscribersRef = useRef(
+    new Set<(chunk: Float32Array, sampleRate: number) => void>(),
+  );
 
   // ── Agent audio playback ──────────────────────────────────────────────────
 
@@ -162,12 +126,18 @@ export function useDeepgramAdapter({
     const float32 = pcm16ToFloat32(raw);
     if (float32.length === 0) return;
 
+    let sumSquares = 0;
+    for (let i = 0; i < float32.length; i++) sumSquares += float32[i] * float32[i];
+    levelRef.current = Math.min(1, Math.sqrt(sumSquares / float32.length) * 4);
+
+    audioSubscribersRef.current.forEach((handler) => handler(float32, OUTPUT_SAMPLE_RATE));
+
     const buffer = ctx.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
     buffer.copyToChannel(float32 as unknown as Float32Array<ArrayBuffer>, 0);
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(analyserRef.current ?? ctx.destination);
+    source.connect(ctx.destination);
 
     const startTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);
     source.start(startTime);
@@ -395,6 +365,16 @@ export function useDeepgramAdapter({
 
   const remoteStream: MediaStream | null = null;
 
+  const getRemoteAudioLevel = useCallback(() => levelRef.current, []);
+
+  const subscribeToRemoteAudio = useCallback(
+    (handler: (chunk: Float32Array, sampleRate: number) => void): (() => void) => {
+      audioSubscribersRef.current.add(handler);
+      return () => audioSubscribersRef.current.delete(handler);
+    },
+    [],
+  );
+
   const subscribeToTranscript = useCallback(
     (handler: (role: 'assistant' | 'user', text: string) => void): (() => void) => {
       subscribersRef.current.add(handler);
@@ -404,8 +384,17 @@ export function useDeepgramAdapter({
   );
 
   return useMemo<SessionAdapter>(
-    () => ({ status, connect, disconnect, mute, remoteStream, subscribeToTranscript }),
+    () => ({
+      status,
+      connect,
+      disconnect,
+      mute,
+      remoteStream,
+      getRemoteAudioLevel,
+      subscribeToRemoteAudio,
+      subscribeToTranscript,
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [status, connect, disconnect, mute, subscribeToTranscript],
+    [status, connect, disconnect, mute, getRemoteAudioLevel, subscribeToRemoteAudio, subscribeToTranscript],
   );
 }

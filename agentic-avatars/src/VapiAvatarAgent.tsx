@@ -25,8 +25,7 @@ import type { VapiAvatarAgentProps } from './types';
  *   }}
  *   ```
  *
- * @param avatarComponent - React component to render as the avatar. Defaults to
- *   the built-in `Jane`. Pass any `React.ComponentType` for a custom avatar.
+ * @param assetsPath - URL/path to a hosted Gaussian-splat avatar asset bundle. Defaults to the built-in "Nyx" avatar.
  *
  * @param backgroundImages - Array of image URLs for the scene background. One
  *   is chosen at random each mount. Transparent when omitted.
@@ -45,11 +44,11 @@ export function VapiAvatarAgent({
   publicKey,
   assistantId,
   assistant,
+  assetsPath,
   backgroundImages,
   onSessionEnd,
   endSessionPhrase,
   sessionTimeout,
-  avatarComponent,
   className,
 }: VapiAvatarAgentProps) {
   const adapter = useVapiAdapter({ publicKey, assistantId, assistant });
@@ -57,11 +56,11 @@ export function VapiAvatarAgent({
   return (
     <AvatarAgent
       adapter={adapter}
+      assetsPath={assetsPath}
       backgroundImages={backgroundImages}
       onSessionEnd={onSessionEnd}
       endSessionPhrase={endSessionPhrase}
       sessionTimeout={sessionTimeout}
-      avatarComponent={avatarComponent}
       className={className}
     />
   );

@@ -29,8 +29,7 @@ import type { LiveKitAvatarAgentProps } from './types';
  *   return { token: await token.toJwt() };
  *   ```
  *
- * @param avatarComponent - React component to render as the avatar. Defaults to
- *   the built-in `Jane`. Pass any `React.ComponentType` for a custom avatar.
+ * @param assetsPath - URL/path to a hosted Gaussian-splat avatar asset bundle. Defaults to the built-in "Nyx" avatar.
  *
  * @param backgroundImages - Array of image URLs for the scene background. One
  *   is chosen at random each mount. Transparent when omitted.
@@ -48,11 +47,11 @@ import type { LiveKitAvatarAgentProps } from './types';
 export function LiveKitAvatarAgent({
   serverUrl,
   getToken,
+  assetsPath,
   backgroundImages,
   onSessionEnd,
   endSessionPhrase,
   sessionTimeout,
-  avatarComponent,
   className,
 }: LiveKitAvatarAgentProps) {
   const adapter = useLiveKitAdapter({ serverUrl, getToken });
@@ -60,11 +59,11 @@ export function LiveKitAvatarAgent({
   return (
     <AvatarAgent
       adapter={adapter}
+      assetsPath={assetsPath}
       backgroundImages={backgroundImages}
       onSessionEnd={onSessionEnd}
       endSessionPhrase={endSessionPhrase}
       sessionTimeout={sessionTimeout}
-      avatarComponent={avatarComponent}
       className={className}
     />
   );

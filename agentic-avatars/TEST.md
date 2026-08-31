@@ -11,7 +11,7 @@ cd agentic-avatars
 pnpm install
 ```
 
-This installs the TypeScript compiler and type stubs used for the type-check step. The heavy runtime dependencies (`three`, `@react-three/fiber`, etc.) are peer dependencies supplied by the host app, so they are not duplicated here.
+This installs the TypeScript compiler and type stubs used for the type-check step. The heavy runtime dependency (`@myned-ai/gsplat-flame-avatar-renderer`) is a peer dependency supplied by the host app, so it is not duplicated here. `onnxruntime-web` is a regular dependency and installs normally.
 
 ---
 
@@ -28,27 +28,11 @@ Expected output: silence (no errors). Any `error TS…` line needs to be fixed b
 
 Common things to check when errors appear:
 
-| Error pattern                             | Likely cause                                                                                   |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `Cannot find module 'wawa-lipsync'`       | Run `pnpm install` first; or stub the types (see below)                                        |
-| `Property X does not exist on type Mesh`  | Three.js type version mismatch — align `@types/three` with the `three` version in the host app |
-| `Type … is not assignable to type 'tool'` | Wrong import — use `tool` from `@openai/agents/realtime`, not from `@openai/agents`            |
-
-### Stubbing missing types temporarily
-
-If `wawa-lipsync` has no bundled types, add a shim file to unblock the type-check:
-
-```ts
-// agentic-avatars/src/wawa-lipsync.d.ts
-declare module "wawa-lipsync" {
-  export const VISEMES: Record<string, string>;
-  export class Lipsync {
-    constructor(opts?: { fftSize?: number; historySize?: number });
-    viseme: string;
-    processAudio(): void;
-  }
-}
-```
+| Error pattern                                                  | Likely cause                                                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `Cannot find module '@myned-ai/gsplat-flame-avatar-renderer'`  | Run `pnpm install` first — the host app must supply this peer dependency          |
+| `Cannot find module 'onnxruntime-web'`                         | Run `pnpm install` first — it's a regular dependency, not a peer                  |
+| `Type … is not assignable to type 'tool'`                      | Wrong import — use `tool` from `@openai/agents/realtime`, not from `@openai/agents` |
 
 ---
 
@@ -73,30 +57,27 @@ pnpm start
 
 ### What to verify
 
-| Check                                       | Expected |
-| ------------------------------------------- | -------- |
-| Page loads without console errors           | ✓        |
-| Canvas renders (no white box)               | ✓        |
-| Spinner shows while GLB loads               | ✓        |
-| Avatar appears after model loads            | ✓        |
-| **Start** button is visible                 | ✓        |
-| Clicking **Start** prompts mic permission   | ✓        |
-| Avatar mouth moves when agent speaks        | ✓        |
-| Clicking **End** disconnects cleanly        | ✓        |
-| `onSessionEnd` fires on phrase / timeout    | ✓        |
-| No errors in Network tab (WebRTC connected) | ✓        |
+| Check                                                     | Expected |
+| ----------------------------------------------------------- | -------- |
+| Page loads without console errors                         | ✓        |
+| Spinner shows while the avatar bundle + ONNX model download | ✓        |
+| Avatar appears after loading finishes                      | ✓        |
+| Reloading the page loads the ONNX model from cache (faster, check the Network tab) | ✓        |
+| **Start** button is visible                                | ✓        |
+| Clicking **Start** prompts mic permission                   | ✓        |
+| Avatar mouth moves when agent speaks                       | ✓        |
+| Clicking **End** disconnects cleanly                       | ✓        |
+| `onSessionEnd` fires on phrase / timeout                    | ✓        |
+| No errors in Network tab (WebRTC connected)                | ✓        |
 
 ### Mobile verification
 
 Open Chrome DevTools → Toggle Device Toolbar → choose a phone preset, then reload. Additional checks:
 
-| Check                                    | Expected                       |
-| ---------------------------------------- | ------------------------------ |
-| No black patches on avatar face          | ✓                              |
-| Hair and eyelashes fully visible         | ✓                              |
-| Eyes not overly transparent              | ✓                              |
-| Lighter shadow map (`basic`) used        | ✓ (check no shadow flickering) |
-| Higher exposure compensates mobile gamma | ✓ (avatar not too dark)        |
+| Check                                          | Expected |
+| ------------------------------------------------- | -------- |
+| Avatar renders without WebGL errors on mobile GPU tier | ✓        |
+| Lipsync still keeps up in near-real-time on mobile CPU (WASM inference) | ✓        |
 
 ---
 
@@ -122,9 +103,11 @@ Before bumping the version and publishing to npm, confirm all of the following:
 - [ ] `onSessionEnd` fires correctly via `sessionTimeout`
 - [ ] Custom `tools` are called by the agent as expected
 - [ ] Custom `backgroundImages` array cycles correctly (refresh a few times)
-- [ ] Custom `modelPath` loads a different GLB without errors
+- [ ] Omitting `assetsPath` loads the built-in Nyx avatar from jsDelivr at `https://cdn.jsdelivr.net/npm/agentic-avatars@<version>/assets/nyx.zip` — verify this URL 404s until the version is actually published (jsDelivr only mirrors published npm versions)
+- [ ] A different `assetsPath` loads a different avatar bundle without errors
 - [ ] Unmounting the component (navigate away) produces no console errors
 - [ ] `package.json` `version` is bumped following semver
+- [ ] `npm pack --dry-run` includes `assets/nyx.zip` in the tarball
 
 ---
 

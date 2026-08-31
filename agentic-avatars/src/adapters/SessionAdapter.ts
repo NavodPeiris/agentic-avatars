@@ -21,9 +21,35 @@ export interface SessionAdapter {
   /**
    * The remote audio MediaStream (agent voice) for lipsync analysis.
    * Must be `null` until audio is actually flowing — not just CONNECTED.
-   * Adapters expose this as reactive state so useLipsync re-runs when it arrives.
+   * Adapters expose this as reactive state so useAvatarLipsync re-runs when it arrives.
+   *
+   * When a platform SDK cannot expose a raw MediaStream, leave this `null`
+   * and implement `getRemoteAudioLevel` instead.
    */
   remoteStream: MediaStream | null;
+
+  /**
+   * Fallback for platforms that cannot expose a MediaStream (e.g. ElevenLabs,
+   * whose SDK only exposes frequency-magnitude and volume scalars, not raw
+   * waveform samples). Returns the agent's current output volume, 0-1.
+   *
+   * When present, `remoteStream` is `null`, and `subscribeToRemoteAudio` is
+   * not implemented, AvatarAgent drives coarse, volume-only mouth movement
+   * from this instead of full wav2arkit neural lipsync (which requires real
+   * audio samples).
+   */
+  getRemoteAudioLevel?(): number;
+
+  /**
+   * Alternative to `remoteStream` for adapters that decode raw PCM
+   * themselves and never produce a browser MediaStream (e.g. Deepgram,
+   * which decodes PCM16 frames from its own WebSocket for manual
+   * playback). Subscribe to receive each decoded chunk as it's produced;
+   * returns an unsubscribe function. When present, AvatarAgent drives full
+   * wav2arkit neural lipsync from these chunks instead of tapping
+   * `remoteStream`.
+   */
+  subscribeToRemoteAudio?(handler: (chunk: Float32Array, sampleRate: number) => void): () => void;
 
   /**
    * Subscribe to transcript messages from both the user and the assistant.

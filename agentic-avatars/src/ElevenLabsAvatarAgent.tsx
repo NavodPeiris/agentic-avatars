@@ -10,11 +10,11 @@ function ElevenLabsAvatarAgentInner({
   agentId,
   getConversationToken,
   clientTools,
+  assetsPath,
   backgroundImages,
   onSessionEnd,
   endSessionPhrase,
   sessionTimeout,
-  avatarComponent,
   className,
 }: ElevenLabsAvatarAgentProps) {
   const adapter = useElevenLabsAdapter({ agentId, getConversationToken, clientTools });
@@ -22,11 +22,11 @@ function ElevenLabsAvatarAgentInner({
   return (
     <AvatarAgent
       adapter={adapter}
+      assetsPath={assetsPath}
       backgroundImages={backgroundImages}
       onSessionEnd={onSessionEnd}
       endSessionPhrase={endSessionPhrase}
       sessionTimeout={sessionTimeout}
-      avatarComponent={avatarComponent}
       className={className}
     />
   );
@@ -60,8 +60,7 @@ function ElevenLabsAvatarAgentInner({
  *   clientTools={{ getWeather: async ({ city }) => fetchWeather(city) }}
  *   ```
  *
- * @param avatarComponent - React component to render as the avatar. Defaults to
- *   the built-in `Jane`. Pass any `React.ComponentType` for a custom avatar.
+ * @param assetsPath - URL/path to a hosted Gaussian-splat avatar asset bundle. Defaults to the built-in "Nyx" avatar.
  *
  * @param backgroundImages - Array of image URLs for the scene background. One
  *   is chosen at random each mount. Transparent when omitted.

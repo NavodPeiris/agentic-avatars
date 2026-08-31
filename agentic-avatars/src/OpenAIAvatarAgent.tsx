@@ -18,7 +18,7 @@ import type { OpenAIAvatarAgentProps } from './types';
  *   ```
  *
  *
- * @param avatarComponent - React component to render as the avatar. Defaults to `Jane`.
+ * @param assetsPath - URL/path to a hosted Gaussian-splat avatar asset bundle. Defaults to the built-in "Nyx" avatar.
  *
  * @param backgroundImages - Array of image URLs for the scene background.
  *
@@ -34,11 +34,11 @@ export function OpenAIAvatarAgent({
   getEphemeralKey,
   agentVoice,
   tools,
+  assetsPath,
   backgroundImages,
   onSessionEnd,
   endSessionPhrase,
   sessionTimeout,
-  avatarComponent,
   className,
 }: OpenAIAvatarAgentProps) {
   const adapter = useOpenAIAdapter({ getEphemeralKey, agentVoice, tools });
@@ -46,11 +46,11 @@ export function OpenAIAvatarAgent({
   return (
     <AvatarAgent
       adapter={adapter}
+      assetsPath={assetsPath}
       backgroundImages={backgroundImages}
       onSessionEnd={onSessionEnd}
       endSessionPhrase={endSessionPhrase}
       sessionTimeout={sessionTimeout}
-      avatarComponent={avatarComponent}
       className={className}
     />
   );

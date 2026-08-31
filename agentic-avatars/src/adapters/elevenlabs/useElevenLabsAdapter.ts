@@ -4,9 +4,8 @@
  * Install: npm install @elevenlabs/react
  * Docs:    https://elevenlabs.io/docs/eleven-agents/libraries/react
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useConversation } from '@elevenlabs/react';
-import { getLipsyncManager, resetLipsyncManager } from '../../audio/lipsyncManager';
 import type { SessionAdapter } from '../SessionAdapter';
 import type { SessionStatus } from '../../types';
 
@@ -58,60 +57,19 @@ export function useElevenLabsAdapter({
     },
   });
 
-  // ── Lipsync via mock analyser ─────────────────────────────────────────
+  // ── ElevenLabs has its own audio playback and exposes no MediaStream ──
   //
-  // ElevenLabs doesn't expose a MediaStream, but it exposes
-  // getOutputByteFrequencyData() — the same Uint8Array that an AnalyserNode
-  // would return. We build a minimal mock analyser that delegates to it,
-  // then drive the wawa-lipsync singleton directly with a rAF loop.
-  // AvatarAgent's useLipsync is a no-op (remoteStream stays null) but the
-  // Avatar component reads from the singleton each frame regardless.
-
-  useEffect(() => {
-    if (status !== 'CONNECTED') return;
-
-    const FFT_SIZE = 2048;
-    const BIN_COUNT = FFT_SIZE / 2;
-    const SAMPLE_RATE = 48000; // ElevenLabs uses pcm_48000
-
-    const dataArray = new Uint8Array(BIN_COUNT);
-
-    // Mock AnalyserNode — only the methods used by wawa-lipsync and
-    // getAgentAudioLevel() need to be implemented.
-    const mockAnalyser = {
-      fftSize: FFT_SIZE,
-      frequencyBinCount: BIN_COUNT,
-      getByteFrequencyData: (arr: Uint8Array) => {
-        const d = conversation.getOutputByteFrequencyData();
-        if (d && d.length > 0) {
-          arr.set(d.subarray(0, Math.min(d.length, arr.length)));
-        }
-      },
-    } as unknown as AnalyserNode;
-
-    const lipsync = getLipsyncManager();
-    (lipsync as any).analyser = mockAnalyser;
-    (lipsync as any).audioContext = null;
-    (lipsync as any).dataArray = dataArray;
-    (lipsync as any).sampleRate = SAMPLE_RATE;
-    (lipsync as any).binWidth = SAMPLE_RATE / FFT_SIZE;
-
-    let animFrameId: number;
-    const tick = () => {
-      lipsync.processAudio();
-      animFrameId = requestAnimationFrame(tick);
-    };
-    tick();
-
-    return () => {
-      cancelAnimationFrame(animFrameId);
-      resetLipsyncManager();
-    };
-  }, [status, conversation]);
-
-  // ── ElevenLabs has its own audio playback — no MediaStream needed ─────
+  // The SDK only exposes frequency-magnitude data and a volume scalar
+  // (getOutputByteFrequencyData / getOutputVolume) — never raw waveform
+  // samples — so the wav2arkit neural lipsync model (which requires real
+  // audio) cannot run for this provider. AvatarAgent falls back to coarse,
+  // volume-driven mouth movement via `getRemoteAudioLevel` instead.
 
   const remoteStream: MediaStream | null = null;
+
+  const getRemoteAudioLevel = useCallback(() => {
+    return conversation.getOutputVolume();
+  }, [conversation]);
 
   // ── SessionAdapter methods ─────────────────────────────────────────────
 
@@ -157,9 +115,9 @@ export function useElevenLabsAdapter({
   );
 
   return useMemo<SessionAdapter>(
-    () => ({ status, connect, disconnect, mute, remoteStream, subscribeToTranscript }),
+    () => ({ status, connect, disconnect, mute, remoteStream, getRemoteAudioLevel, subscribeToTranscript }),
     // remoteStream is always null (stable), no need to include in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [status, connect, disconnect, mute, subscribeToTranscript],
+    [status, connect, disconnect, mute, getRemoteAudioLevel, subscribeToTranscript],
   );
 }

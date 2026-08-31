@@ -30,8 +30,7 @@ import type { DeepgramAvatarAgentProps } from './types';
  *
  * @param sttModel - Deepgram STT model. Defaults to `"nova-3"`.
  *
- * @param avatarComponent - React component to render as the avatar. Defaults to
- *   the built-in `Jane`. Pass any `React.ComponentType` for a custom avatar.
+ * @param assetsPath - URL/path to a hosted Gaussian-splat avatar asset bundle. Defaults to the built-in "Nyx" avatar.
  *
  * @param backgroundImages - Array of image URLs for the scene background. One
  *   is chosen at random each mount. Transparent when omitted.
@@ -53,11 +52,11 @@ export function DeepgramAvatarAgent({
   voice,
   sttModel,
   tools,
+  assetsPath,
   backgroundImages,
   onSessionEnd,
   endSessionPhrase,
   sessionTimeout,
-  avatarComponent,
   className,
 }: DeepgramAvatarAgentProps) {
   const adapter = useDeepgramAdapter({ getApiKey, systemPrompt, llm, voice, sttModel, tools });
@@ -65,11 +64,11 @@ export function DeepgramAvatarAgent({
   return (
     <AvatarAgent
       adapter={adapter}
+      assetsPath={assetsPath}
       backgroundImages={backgroundImages}
       onSessionEnd={onSessionEnd}
       endSessionPhrase={endSessionPhrase}
       sessionTimeout={sessionTimeout}
-      avatarComponent={avatarComponent}
       className={className}
     />
   );

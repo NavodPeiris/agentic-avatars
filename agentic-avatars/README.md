@@ -8,7 +8,7 @@
 
 # agentic-avatars
 
-Zero-Infrastructure Lip-Synced 3D avatar components for AI voice agents. Drop it into any React app, pick a provider, and hand it your credentials — everything else is handled internally. **No Infrastructure provisioning for 3D avatars. Runs Directly on Browser.**
+Zero-Infrastructure Lip-Synced Gaussian-Splat avatar components for AI voice agents. Drop it into any React app, pick a provider, and hand it your credentials — everything else is handled internally. **No infrastructure provisioning — Gaussian-splat rendering and wav2arkit neural lipsync both run directly in the browser.**
 
 Supported providers: **OpenAI Realtime API**, **Deepgram Voice Agents**, **ElevenLabs Conversational AI Agents**, **Vapi Agents**, **LiveKit Agents**.
 
@@ -16,17 +16,15 @@ Supported providers: **OpenAI Realtime API**, **Deepgram Voice Agents**, **Eleve
 
 ## Requirements
 
-| Peer dependency      | Version |
-| -------------------- | ------- |
-| `@react-three/drei`  | ≥ 10    |
-| `@react-three/fiber` | ≥ 9     |
-| `react`              | ≥ 18    |
-| `react-dom`          | ≥ 18    |
-| `three`              | ≥ 0.160 |
-| `@deepgram/sdk`      | ≥ 5.0.0 |
-| `@elevenlabs/react`  | ≥ 1.0.2 |
-| `@vapi-ai/web`       | ≥ 2.5.2 |
-| `livekit-client`     | 2.16.1  |
+| Peer dependency                          | Version  |
+| ----------------------------------------- | -------- |
+| `@myned-ai/gsplat-flame-avatar-renderer`  | ≥ 1.4.0  |
+| `react`                                   | ≥ 18     |
+| `react-dom`                               | ≥ 18     |
+| `@deepgram/sdk`                           | ≥ 5.0.0  |
+| `@elevenlabs/react`                       | ≥ 1.0.2  |
+| `@vapi-ai/web`                            | ≥ 2.5.2  |
+| `livekit-client`                          | 2.16.1   |
 
 Optional depending on your provider usecase:
 
@@ -42,6 +40,24 @@ Optional depending on your provider usecase:
 ```bash
 npm install agentic-avatars
 ```
+
+---
+
+## Breaking changes (v0.2)
+
+Rendering moved from React Three Fiber + GLB meshes to
+[`@myned-ai/gsplat-flame-avatar-renderer`](https://www.npmjs.com/package/@myned-ai/gsplat-flame-avatar-renderer)
+(Gaussian Splatting), and lipsync moved from the amplitude-heuristic
+`wawa-lipsync` package to the `wav2arkit` neural model, running client-side
+via `onnxruntime-web`. If you're upgrading:
+
+- `avatarComponent` is removed. Pass `assetsPath` instead (optional — see
+  [Avatars](#avatars) below).
+- The built-in `Jane` / `Fiona` / `Sam` exports are removed, replaced by a
+  single built-in default avatar, "Nyx", used automatically when
+  `assetsPath` is omitted.
+- `@react-three/fiber`, `@react-three/drei`, and `three` are no longer peer
+  dependencies.
 
 ---
 
@@ -61,7 +77,6 @@ Uses the OpenAI Realtime API over WebRTC. Requires a server-side endpoint to min
 
 ```tsx
 import { OpenAIAvatarAgent } from "agentic-avatars/openai";
-import { Jane } from "agentic-avatars";
 import type { OpenAIRealtimeTool } from "agentic-avatars";
 
 const tools: OpenAIRealtimeTool[] = [
@@ -92,7 +107,6 @@ const tools: OpenAIRealtimeTool[] = [
 
 <OpenAIAvatarAgent
   backgroundImages={["/niceBG.jpg"]}
-  avatarComponent={Jane}
   agentVoice="nova"
   tools={tools}
   getEphemeralKey={async () => {
@@ -116,7 +130,7 @@ const openai = new OpenAI({
 const sys_prompt = `
 # ROLE
 You are a product recommendation assistant for Amazon who answers user questions and recommends products based on their preferences.
-at initial greeting, say 'Hello! I am Jane, a product specialist at Amazon. I can help you find products — feel free to tell me what you are looking for!'
+at initial greeting, say 'Hello! I am your product specialist at Amazon. I can help you find products — feel free to tell me what you are looking for!'
 DO NOT repeat it again.
 
 These are currently available products:
@@ -154,6 +168,8 @@ export async function GET() {
 | `tools`           | `ReturnType<typeof tool>[]` | `[]`         | Tools the agent can call. Use the `tool()` helper from `@openai/agents/realtime`.               |
 | `agentVoice`      | `string`                    | `"sage"`     | OpenAI Realtime voice. Options: `alloy` `ash` `ballad` `coral` `echo` `sage` `shimmer` `verse`. |
 
+Runs full wav2arkit neural lipsync — OpenAI's WebRTC session exposes a real remote `MediaStream`.
+
 ---
 
 ## Deepgram
@@ -163,12 +179,11 @@ Uses the Deepgram Voice Agent API over WebSocket. Handles STT, LLM, and TTS in a
 ```tsx
 import { DeepgramAvatarAgent } from "agentic-avatars/deepgram";
 import type { DeepgramTool } from "agentic-avatars";
-import { Jane } from "agentic-avatars";
 
 const sys_prompt = `
 # ROLE
 You are a product recommendation assistant for Amazon who answers user questions and recommends products based on their preferences.
-At initial greeting, say 'Hello! I am Jane, a product specialist at Amazon. I can help you find products — feel free to tell me what you are looking for!'
+At initial greeting, say 'Hello! I am your product specialist at Amazon. I can help you find products — feel free to tell me what you are looking for!'
 DO NOT repeat it again.
 
 These are currently available products:
@@ -214,7 +229,6 @@ export default function DeepgramAvatarTest() {
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
       <DeepgramAvatarAgent
-        avatarComponent={Jane}
         // YOU SHOULD NEVER EXPOSE YOUR DEEPGRAM API KEY IN THE BROWSER IN PRODUCTION.
         // FOR PRODUCTION USE: proxy the key through your backend.
         getApiKey={async () => process.env.REACT_APP_DEEPGRAM_API_KEY!}
@@ -242,6 +256,8 @@ export default function DeepgramAvatarTest() {
 | `voice`        | `string`                | `"aura-2-thalia-en"`                            | Deepgram TTS voice. See [Deepgram TTS models](https://developers.deepgram.com/docs/tts-models). |
 | `sttModel`     | `string`                | `"nova-3"`                                      | Deepgram STT model.                                                                             |
 
+Runs full wav2arkit neural lipsync — Deepgram's SDK doesn't expose a `MediaStream`, but this adapter decodes the raw PCM16 audio itself and feeds those samples straight into the lipsync engine.
+
 ---
 
 ## ElevenLabs
@@ -250,7 +266,6 @@ Uses the ElevenLabs Conversational AI SDK. Configure your agent in the ElevenLab
 
 ```tsx
 import { ElevenLabsAvatarAgent } from "agentic-avatars/elevenlabs";
-import { Jane } from "agentic-avatars";
 
 // Public agent (no auth required)
 <ElevenLabsAvatarAgent
@@ -260,7 +275,6 @@ import { Jane } from "agentic-avatars";
 // Private agent (fetch a short-lived token server-side)
 <ElevenLabsAvatarAgent
   backgroundImages={["/niceBG.jpg"]}
-  avatarComponent={Jane}
   agentId="your-agent-id"
   getConversationToken={async () => {
     const res = await fetch("/api/elevenlabs-token");
@@ -287,10 +301,12 @@ export async function GET(req: Request) {
 ### Props
 
 | Prop                   | Type                               | Default      | Description                                                      |
-| ---------------------- | ---------------------------------- | ------------ | ---------------------------------------------------------------- |
+| ---------------------- | ----------------------------------- | ------------ | ---------------------------------------------------------------- |
 | `agentId`              | `string`                           | **required** | Agent ID from the ElevenLabs dashboard.                          |
 | `getConversationToken` | `() => Promise<string>`            | —            | Required for private agents. Returns a short-lived WebRTC token. |
 | `clientTools`          | `Record<string, (...args) => any>` | —            | Client-side tools exposed to the agent.                          |
+
+> **Lipsync note:** the ElevenLabs SDK only exposes frequency-magnitude and volume scalars, never raw waveform audio, so the wav2arkit neural model can't run for this provider. ElevenLabs falls back to coarse, volume-driven mouth movement instead of full lipsync.
 
 ---
 
@@ -300,7 +316,6 @@ Uses the Vapi Web SDK. Configure your assistant in the Vapi dashboard or pass an
 
 ```tsx
 import { VapiAvatarAgent } from "agentic-avatars/vapi";
-import { Jane } from "agentic-avatars";
 
 // Using a pre-configured assistant ID
 <VapiAvatarAgent
@@ -311,7 +326,6 @@ import { Jane } from "agentic-avatars";
 // Using an inline assistant config
 <VapiAvatarAgent
   backgroundImages={["/niceBG.jpg"]}
-  avatarComponent={Jane}
   publicKey="your-vapi-public-key"
   assistant={{
     model: {
@@ -327,10 +341,12 @@ import { Jane } from "agentic-avatars";
 ### Props
 
 | Prop          | Type                  | Default      | Description                                                                   |
-| ------------- | --------------------- | ------------ | ----------------------------------------------------------------------------- |
-| `publicKey`   | `string`              | **required** | Your Vapi public key (safe to expose in the browser).                         |
-| `assistantId` | `string`              | —            | Pre-configured assistant ID. Mutually exclusive with `assistant`.             |
+| ------------- | ---------------------- | ------------ | ----------------------------------------------------------------------------- |
+| `publicKey`   | `string`               | **required** | Your Vapi public key (safe to expose in the browser).                         |
+| `assistantId` | `string`               | —            | Pre-configured assistant ID. Mutually exclusive with `assistant`.             |
 | `assistant`   | `Record<string, any>` | —            | Inline assistant configuration object. Mutually exclusive with `assistantId`. |
+
+Runs full wav2arkit neural lipsync — Vapi's Web SDK exposes a real remote `MediaStream`.
 
 ---
 
@@ -340,11 +356,9 @@ Uses LiveKit Agents over WebRTC. Your LiveKit agent must be running server-side 
 
 ```tsx
 import { LiveKitAvatarAgent } from "agentic-avatars/livekit";
-import { Jane } from "agentic-avatars";
 
 <LiveKitAvatarAgent
   backgroundImages={["/niceBG.jpg"]}
-  avatarComponent={Jane}
   serverUrl="wss://my-project.livekit.cloud"
   getToken={async () => {
     const res = await fetch("/api/livekit-token");
@@ -359,7 +373,6 @@ import { Jane } from "agentic-avatars";
 ```ts
 // app/api/livekit-token/route.ts
 import { AccessToken } from "livekit-server-sdk";
-import { Jane } from "agentic-avatars";
 
 export async function GET() {
   const token = new AccessToken(
@@ -379,36 +392,51 @@ export async function GET() {
 | `serverUrl` | `string`                | **required** | LiveKit server WebSocket URL, e.g. `wss://my-project.livekit.cloud`.                       |
 | `getToken`  | `() => Promise<string>` | **required** | Returns a short-lived participant token. Generate server-side with the LiveKit server SDK. |
 
+Runs full wav2arkit neural lipsync — LiveKit's client exposes a real remote `MediaStream`.
+
 ---
 
 ## Shared props
 
 All provider components accept these additional props:
 
-| Prop               | Type            | Default             | Description                                                                                        |
-| ------------------ | --------------- | ------------------- | -------------------------------------------------------------------------------------------------- |
-| `avatarComponent`  | `ComponentType` | `Jane`              | Avatar to render. Pass a library-provided avatar or any custom `React.ComponentType`.              |
-| `backgroundImages` | `string[]`      | `[]`                | Image URLs for the scene background. One is chosen at random each mount. Transparent when omitted. |
-| `onSessionEnd`     | `() => void`    | —                   | Called when the session ends (end phrase detected, timeout, or user clicked End).                  |
-| `endSessionPhrase` | `string`        | `"this is the end"` | Case-insensitive substring the component watches for in the agent's transcript to end the session. |
-| `sessionTimeout`   | `number`        | `600000`            | Hard timeout in milliseconds.                                                                      |
-| `className`        | `string`        | —                   | Extra CSS class names on the outermost container `div`.                                            |
+| Prop                | Type         | Default              | Description                                                                                         |
+| -------------------- | ------------ | -------------------- | ----------------------------------------------------------------------------------------------------- |
+| `assetsPath`         | `string`     | built-in "Nyx" avatar | URL/path to a hosted Gaussian-splat avatar asset bundle. See [Avatars](#avatars) below.                |
+| `backgroundImages`   | `string[]`   | `[]`                  | Image URLs for the background. One is chosen at random each mount. Transparent when omitted.          |
+| `onSessionEnd`       | `() => void` | —                     | Called when the session ends (end phrase detected, timeout, or user clicked End).                      |
+| `endSessionPhrase`   | `string`     | `"this is the end"`  | Case-insensitive substring the component watches for in the agent's transcript to end the session.     |
+| `sessionTimeout`     | `number`     | `600000`             | Hard timeout in milliseconds.                                                                          |
+| `className`          | `string`     | —                     | Extra CSS class names on the outermost container `div`.                                                |
 
 ---
 
 ## Avatars
 
-The library ships a built-in avatar that is used by default. You can also pass any React component that renders a 3D scene element (intended for use inside a `@react-three/fiber` `Canvas`).
+The library ships with a built-in default avatar, **Nyx**, used automatically
+when you don't pass `assetsPath` — nothing to configure, nothing to host.
+The bundle lives inside the npm package (`assets/nyx.zip`) and is served via
+[jsDelivr's npm CDN](https://www.jsdelivr.com/), which mirrors every
+published package's contents automatically.
 
-### Available avatars
+```tsx
+// Uses the built-in Nyx avatar — no assetsPath needed
+<OpenAIAvatarAgent getEphemeralKey={...} />
+```
 
-| Export  | Description                                                                 |
-| ------- | --------------------------------------------------------------------------- |
-| `Jane`  | Female avatar with a face rig. Loads the model from jsDelivr automatically. |
-| `Fiona` | Female avatar with a face rig. Loads the model from jsDelivr automatically. |
-| `Sam`   | Male avatar with a face rig. Loads the model from jsDelivr automatically.   |
+To use your own avatar instead, host a Gaussian-splat asset bundle
+(compatible with
+[`@myned-ai/gsplat-flame-avatar-renderer`](https://www.npmjs.com/package/@myned-ai/gsplat-flame-avatar-renderer))
+and pass its URL as `assetsPath` — same "bring your own" model the library
+used for custom R3F avatars before, just adapted to the new renderer's asset
+format:
 
-Thanks [Ravindu Wijethunga](https://github.com/rvndudz) for helping with 3D models.
+```tsx
+<OpenAIAvatarAgent
+  getEphemeralKey={...}
+  assetsPath="https://your-cdn.example.com/avatars/your-avatar-bundle"
+/>
+```
 
 ---
 
@@ -431,7 +459,10 @@ function MyPage() {
 
   return (
     <div className="my-layout">
-      <AvatarAgent adapter={adapter} className="h-[600px]" />
+      <AvatarAgent
+        adapter={adapter}
+        className="h-[600px]"
+      />
     </div>
   );
 }
@@ -447,6 +478,13 @@ useVapiAdapter(options); // → SessionAdapter
 useLiveKitAdapter(options); // → SessionAdapter
 ```
 
+A `SessionAdapter` exposes `remoteStream` for full neural lipsync, plus two
+optional fallbacks for platforms that can't produce a `MediaStream`:
+`subscribeToRemoteAudio` (push already-decoded PCM straight into wav2arkit —
+used by Deepgram) and `getRemoteAudioLevel` (a 0-1 volume scalar for coarse,
+volume-only mouth movement — used by ElevenLabs). Implement one of these if
+you're writing a custom adapter for a platform without a real audio stream.
+
 ---
 
 ## How it works
@@ -457,7 +495,8 @@ User clicks Start
       ▼
 Provider adapter connects (WebRTC / WebSocket)
       │
-      ├── Audio stream ──► Web Audio AnalyserNode ──► wawa-lipsync ──► morph targets on avatar
+      ├── Audio ──► resample to 16kHz ──► wav2arkit (onnxruntime-web) ──► ARKit blendshapes ──► Gaussian-splat renderer
+      │             (MediaStream tap, or pushed raw PCM — see Advanced: adapter hooks)
       │
       ├── Transcript ──► endSessionPhrase check ──► onSessionEnd(), End
       │
@@ -465,6 +504,11 @@ Provider adapter connects (WebRTC / WebSocket)
       |
       └── sessionTimeout ──► onSessionEnd(), End
 ```
+
+The wav2arkit ONNX model
+([myned-ai/wav2arkit_cpu](https://huggingface.co/myned-ai/wav2arkit_cpu), Apache-2.0)
+is fetched and cached in the browser on first use — no server component
+required.
 
 ---
 
@@ -474,49 +518,42 @@ Provider adapter connects (WebRTC / WebSocket)
 src/
 ├── index.ts                    ← public exports
 ├── types.ts                    ← shared prop types
-├── AvatarAgent.tsx             ← platform-agnostic core component
+├── AvatarAgent.tsx              ← platform-agnostic core component
 ├── OpenAIAvatarAgent.tsx       ← provider convenience wrappers
 ├── DeepgramAvatarAgent.tsx
 ├── ElevenLabsAvatarAgent.tsx
 ├── VapiAvatarAgent.tsx
 ├── LiveKitAvatarAgent.tsx
-├── avatars/
-│   └── ...              ← contains avatar components
+├── avatar/
+│   ├── GaussianAvatarController.ts   ← wraps @myned-ai/gsplat-flame-avatar-renderer
+│   ├── LazyAvatarController.ts       ← lazy-loads the renderer + lipsync engine
+│   └── AvatarContainer.tsx           ← React mount point + background image
+├── constants/
+│   └── arkit.ts                 ← ARKit blendshape names, neutral pose
 ├── adapters/
-│   ├── SessionAdapter.ts       ← adapter interface
+│   ├── SessionAdapter.ts        ← adapter interface
 │   ├── openai/
 │   ├── deepgram/
 │   ├── elevenlabs/
 │   ├── vapi/
 │   └── livekit/
-├── scene/
-│   ├── AvatarScene.tsx         ← camera, lights, transparency fix
-│   └── Background.tsx          ← scene background from image array
 └── audio/
-    ├── lipsyncManager.ts       ← singleton Lipsync instance
-    ├── useLipsync.ts           ← wires audio stream into lipsync analyser
-    └── useAudio.ts             ← mic monitoring
+    ├── wav2arkit/
+    │   ├── modelLoader.ts        ← fetches + caches the ONNX model
+    │   ├── resample.ts           ← resamples audio to 16kHz
+    │   ├── inferenceEngine.ts    ← onnxruntime-web session
+    │   └── liveLipsync.ts        ← streaming/paced inference pipeline
+    ├── useAvatarLipsync.ts       ← wires a MediaStream into wav2arkit
+    ├── usePushAudioLipsync.ts    ← wires pushed raw PCM into wav2arkit
+    ├── useVolumeFallbackLipsync.ts ← coarse fallback for stream-less adapters
+    └── useAudio.ts               ← mic monitoring
 ```
 
-all avatars have a component and 3D models were delivered though jsDelivr via this Repo's `models` branch.
-
-### This Avatar Library is Growing!
-
-## How to create your own Avatar Component
-
-first you should make sure your 3D model has face morphs with morph targets. These morph targets can be controlled via react three fiber. Then convert model to be usable in JS runtime using https://github.com/pmndrs/gltfjsx
-
-```
-1. create your 3D model with face morphs
-2. convert your model using by running: npx gltfjsx your_model.glb --transform
-3. this will provide an optimized glb and model JSX file. Adopt the JSX file to follow the format
-4. now you have your model and react component
-```
+---
 
 ## Contribution Guide
 
-- To contribute to package source code raise PRs to `main` branch
-- To contribute to 3D models: raise the PR to `models` branch adding a separate folder with the avatar name and GLB file in it. Then raise a PR to `main` to add the avatar component — follow the format in `src/avatars/Jane.tsx`.
+To contribute to package source code, raise PRs to the `main` branch.
 
 ---
 
@@ -524,7 +561,7 @@ first you should make sure your 3D model has face morphs with morph targets. The
 
 **agentic-avatars is free, open-source, and maintained in personal time.**
 
-If your product ships AI-powered conversations and this library saves you weeks of WebRTC wrangling, lip-sync work, and provider integration — consider sponsoring. Even a small recurring amount keeps new avatar models coming, more providers supported, and bugs fixed fast.
+If your product ships AI-powered conversations and this library saves you weeks of WebRTC wrangling, lip-sync work, and provider integration — consider sponsoring. Even a small recurring amount keeps the library maintained, more providers supported, and bugs fixed fast.
 
 [**Sponsor on GitHub →**](https://github.com/sponsors/navodPeiris)
 
@@ -539,7 +576,7 @@ If you use agentic-avatars in academic work, a research demo, or a published pro
 ```bibtex
 @software{peiris2025agenticavatars,
   author  = {Peiris, Navod},
-  title   = {agentic-avatars: Zero-Infrastructure Lip-Synced 3D avatar components for AI voice agents},
+  title   = {agentic-avatars: Zero-Infrastructure Lip-Synced Gaussian-Splat avatar components for AI voice agents},
   year    = {2026},
   url     = {https://github.com/navodPeiris/agentic-avatars},
   note    = {npm: agentic-avatars}
@@ -548,8 +585,8 @@ If you use agentic-avatars in academic work, a research demo, or a published pro
 
 **Plain text**
 
-> Navod Peiris. _agentic-avatars: Zero-Infrastructure Lip-Synced 3D avatar components for AI voice agents._ 2026. https://github.com/navodPeiris/agentic-avatars
+> Navod Peiris. _agentic-avatars: Zero-Infrastructure Lip-Synced Gaussian-Splat avatar components for AI voice agents._ 2026. https://github.com/navodPeiris/agentic-avatars
 
 **Acknowledgement (for README or paper footnote)**
 
-> 3D avatar and lip-sync powered by [agentic-avatars](https://github.com/navodPeiris/agentic-avatars).
+> Gaussian-splat avatar and lip-sync powered by [agentic-avatars](https://github.com/navodPeiris/agentic-avatars).
